@@ -1,10 +1,13 @@
 const rawMock = import.meta.env.VITE_MOCK_MODE === "true";
 
 /**
- * Mock mode is hard-disabled in production builds. Even if `VITE_MOCK_MODE=true`
- * leaks into the build environment, production will always use the real API.
+ * Mock mode is enabled when VITE_MOCK_MODE=true.
+ * Defaults to true in development.
  */
-export const MOCK_MODE = import.meta.env.PROD ? false : rawMock;
+export const MOCK_MODE =
+  import.meta.env.VITE_MOCK_MODE !== undefined
+    ? rawMock
+    : import.meta.env.DEV;
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api/v1";
 
