@@ -26,6 +26,39 @@ describe("EvidenceViewer", () => {
     expect(await screen.findByAltText("Evidence media-002")).toBeInTheDocument();
   });
 
+  it("renders video element when media kind is clip with mp4 video", async () => {
+    vi.mocked(fetchMedia).mockResolvedValue({
+      media_id: "media-010",
+      kind: "clip",
+      content_type: "video/mp4",
+      url: "https://storage.googleapis.com/bucket/replays/run1.mp4",
+      available: true,
+    });
+    renderWithProviders(<EvidenceViewer mediaId="media-010" />);
+    const video = await screen.findByLabelText("Evidence media-010");
+    expect(video).toBeInTheDocument();
+    expect(video.tagName.toLowerCase()).toBe("video");
+    expect(video).toHaveAttribute("src", "https://storage.googleapis.com/bucket/replays/run1.mp4");
+  });
+
+  it("renders bounding box overlay when boxes are provided", async () => {
+    vi.mocked(fetchMedia).mockResolvedValue({
+      media_id: "media-001",
+      kind: "image",
+      content_type: "image/svg+xml",
+      url: "data:image/svg+xml;utf8,<svg/>",
+      available: true,
+    });
+    renderWithProviders(
+      <EvidenceViewer
+        mediaId="media-001"
+        boxes={[{ label: "Worker", box: [100, 200, 500, 600], confidence: 0.94 }]}
+      />,
+    );
+    expect(await screen.findByText(/Worker \(94%\)/)).toBeInTheDocument();
+    expect(screen.getByTestId("evidence-bbox")).toBeInTheDocument();
+  });
+
   it("shows a placeholder when media is expired/unavailable", async () => {
     vi.mocked(fetchMedia).mockRejectedValue(
       new ApiError({ status: 410, kind: "validation", message: "Media telah kedaluwarsa." }),

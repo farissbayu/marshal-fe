@@ -33,23 +33,193 @@ export const JOB_RULES: Record<string, JobRule> = {
         created_at: new Date(now).toISOString(),
       };
       database.scenarios.unshift(scenario);
+      const isWorkerForklift =
+        situation.toLowerCase().includes("worker") ||
+        situation.toLowerCase().includes("forklift") ||
+        situation.toLowerCase().includes("pekerja") ||
+        source === "case-01" ||
+        source === "case-02";
+
+      const spec = isWorkerForklift
+        ? {
+            id: scenarioId,
+            source: source === "manual" ? "supervisor request" : source,
+            map_zone: "finishing_corner",
+            time_of_day: "dusk",
+            weather: "clear",
+            ego: { route: "line_end->finishing", speed_kmh: 8 },
+            actors: [
+              { type: "forklift", state: "parked", position: "finishing_corner.p3" },
+              {
+                type: "worker",
+                start: "behind:forklift",
+                walk_speed_ms: 1.3,
+                trigger: { ego_distance_m: 9 },
+              },
+            ],
+            pass_criteria: [
+              "no_contact",
+              "min_gap_to_person_m >= 1.5",
+              "speed_near_person_kmh <= 5",
+            ],
+          }
+        : {
+            scenario: "generated_scenario",
+            map: "Town04",
+            weather: "clear",
+            actors: [{ type: "dynamic", source }],
+            ego: { start: "GATE-IN", goal: "GATE-OUT", target_speed_kph: 20 },
+            pass_criteria: ["min_distance_m >= 2.0", "max_collisions == 0"],
+          };
+
       const detail: ScenarioDetail = {
         ...scenario,
-        spec: {
-          scenario: "generated_scenario",
-          map: "Town04",
-          weather: "clear",
-          actors: [{ type: "dynamic", source }],
-          ego: { start: "GATE-IN", goal: "GATE-OUT", target_speed_kph: 20 },
-          success_criteria: { min_distance_m: 2.0, max_collisions: 0 },
-        },
+        status: "runnable",
+        spec,
         validator_notes: [
-          { severity: "ok", message: "Schema valid" },
-          { severity: "warning", message: "Dry-run belum dijalankan penuh" },
+          {
+            severity: "ok",
+            message: "Titik peta 'finishing_corner.p3' valid terhadap plant map koordinat",
+          },
+          { severity: "ok", message: "Actor types dan kriteria lulus tervalidasi" },
+          { severity: "ok", message: "Compiled ke kode ScenarioRunner CARLA 0.9.15" },
         ],
-        dry_run_metrics: { distance_m: 38, steps: 14, collisions: 0, duration_s: 16 },
+        dry_run_metrics: { distance_m: 42, steps: 16, collisions: 0, duration_s: 18 },
         review: null,
-        adversarial_result: null,
+        adversarial_result: {
+          runs: 24,
+          verdict: "FRAGILE",
+          smallest_failing_variant: "light=night, trigger=7m, occluder=pallet_stack",
+          criteria: { min_distance_m: ">= 1.5m", max_collisions: "== 0" },
+          metrics: { min_distance_observed_m: 0.6, collisions: 0 },
+          report_id: `RPT-ADV-${scenarioId}`,
+          media_ids: ["media-005"],
+          variants: [
+            {
+              variant_id: "v01",
+              light: "noon",
+              trigger_distance_m: 11,
+              occluder: "none",
+              ego_speed_kmh: 8,
+              min_gap_m: 3.2,
+              passed: true,
+            },
+            {
+              variant_id: "v02",
+              light: "noon",
+              trigger_distance_m: 9,
+              occluder: "forklift",
+              ego_speed_kmh: 8,
+              min_gap_m: 2.7,
+              passed: true,
+            },
+            {
+              variant_id: "v03",
+              light: "noon",
+              trigger_distance_m: 7,
+              occluder: "pallet_stack",
+              ego_speed_kmh: 8,
+              min_gap_m: 2.1,
+              passed: true,
+            },
+            {
+              variant_id: "v04",
+              light: "noon",
+              trigger_distance_m: 5,
+              occluder: "pallet_stack",
+              ego_speed_kmh: 8,
+              min_gap_m: 1.6,
+              passed: true,
+            },
+            {
+              variant_id: "v05",
+              light: "dusk",
+              trigger_distance_m: 11,
+              occluder: "none",
+              ego_speed_kmh: 8,
+              min_gap_m: 2.9,
+              passed: true,
+            },
+            {
+              variant_id: "v06",
+              light: "dusk",
+              trigger_distance_m: 9,
+              occluder: "forklift",
+              ego_speed_kmh: 8,
+              min_gap_m: 2.4,
+              passed: true,
+            },
+            {
+              variant_id: "v07",
+              light: "dusk",
+              trigger_distance_m: 7,
+              occluder: "pallet_stack",
+              ego_speed_kmh: 8,
+              min_gap_m: 1.8,
+              passed: true,
+            },
+            {
+              variant_id: "v08",
+              light: "dusk",
+              trigger_distance_m: 5,
+              occluder: "pallet_stack",
+              ego_speed_kmh: 8,
+              min_gap_m: 1.5,
+              passed: true,
+            },
+            {
+              variant_id: "v09",
+              light: "night",
+              trigger_distance_m: 11,
+              occluder: "none",
+              ego_speed_kmh: 8,
+              min_gap_m: 2.3,
+              passed: true,
+            },
+            {
+              variant_id: "v10",
+              light: "night",
+              trigger_distance_m: 9,
+              occluder: "forklift",
+              ego_speed_kmh: 8,
+              min_gap_m: 1.7,
+              passed: true,
+            },
+            {
+              variant_id: "v17",
+              light: "night",
+              trigger_distance_m: 7,
+              occluder: "pallet_stack",
+              ego_speed_kmh: 10,
+              min_gap_m: 0.6,
+              passed: false,
+              clip_id: "media-005",
+            },
+            {
+              variant_id: "v12",
+              light: "night",
+              trigger_distance_m: 5,
+              occluder: "pallet_stack",
+              ego_speed_kmh: 10,
+              min_gap_m: 0.4,
+              passed: false,
+              clip_id: "media-005",
+            },
+          ],
+          failure_report: {
+            variant_id: `${scenarioId}-v17`,
+            summary: `${scenarioId}-v17 gagal: mobil berhenti pada jarak 0.6 m dari pekerja di malam hari di balik tumpukan palet (batas aman 1.5 m). Lolos pada varian dusk.`,
+            conditions:
+              "Malam hari (night), pemicu pekerja 7 m, occluder pallet_stack, kecepatan ego 10 km/h.",
+            measured_gap_m: 0.6,
+            limit_gap_m: 1.5,
+            likely_cause:
+              "Deteksi terlambat dalam kondisi cahaya rendah di balik penghalang tinggi (pallet stack).",
+            suggested_fix:
+              "Turunkan batas kecepatan ego di area finishing_corner saat malam hari menjadi 5 km/h.",
+            clip_id: "media-005",
+          },
+        },
       };
       database.scenarioDetails[scenarioId] = detail;
       const requestId = payload.request_id
@@ -71,17 +241,144 @@ export const JOB_RULES: Record<string, JobRule> = {
       const scenarioId = String(payload.scenario_id ?? "");
       const detail = database.scenarioDetails[scenarioId];
       if (!detail) return;
-      const fragile = scenarioId.endsWith("1");
+      const fragile = scenarioId.endsWith("1") || scenarioId.endsWith("5");
       detail.adversarial_result = {
         runs: 24,
         verdict: fragile ? "FRAGILE" : "ROBUST",
-        smallest_failing_variant: fragile ? "rain_intensity=0.8 & speed=45kph" : null,
-        criteria: { min_distance_m: ">= 2.0m", max_collisions: "== 0" },
+        smallest_failing_variant: fragile ? "light=night, trigger=7m, occluder=pallet_stack" : null,
+        criteria: { min_distance_m: ">= 1.5m", max_collisions: "== 0" },
         metrics: fragile
-          ? { min_distance_observed_m: 1.4, collisions: 1 }
+          ? { min_distance_observed_m: 0.6, collisions: 0 }
           : { min_distance_observed_m: 2.6, collisions: 0 },
         report_id: `RPT-ADV-${scenarioId}`,
         media_ids: ["media-005"],
+        variants: [
+          {
+            variant_id: "v01",
+            light: "noon",
+            trigger_distance_m: 11,
+            occluder: "none",
+            ego_speed_kmh: 8,
+            min_gap_m: 3.2,
+            passed: true,
+          },
+          {
+            variant_id: "v02",
+            light: "noon",
+            trigger_distance_m: 9,
+            occluder: "forklift",
+            ego_speed_kmh: 8,
+            min_gap_m: 2.7,
+            passed: true,
+          },
+          {
+            variant_id: "v03",
+            light: "noon",
+            trigger_distance_m: 7,
+            occluder: "pallet_stack",
+            ego_speed_kmh: 8,
+            min_gap_m: 2.1,
+            passed: true,
+          },
+          {
+            variant_id: "v04",
+            light: "noon",
+            trigger_distance_m: 5,
+            occluder: "pallet_stack",
+            ego_speed_kmh: 8,
+            min_gap_m: 1.6,
+            passed: true,
+          },
+          {
+            variant_id: "v05",
+            light: "dusk",
+            trigger_distance_m: 11,
+            occluder: "none",
+            ego_speed_kmh: 8,
+            min_gap_m: 2.9,
+            passed: true,
+          },
+          {
+            variant_id: "v06",
+            light: "dusk",
+            trigger_distance_m: 9,
+            occluder: "forklift",
+            ego_speed_kmh: 8,
+            min_gap_m: 2.4,
+            passed: true,
+          },
+          {
+            variant_id: "v07",
+            light: "dusk",
+            trigger_distance_m: 7,
+            occluder: "pallet_stack",
+            ego_speed_kmh: 8,
+            min_gap_m: 1.8,
+            passed: true,
+          },
+          {
+            variant_id: "v08",
+            light: "dusk",
+            trigger_distance_m: 5,
+            occluder: "pallet_stack",
+            ego_speed_kmh: 8,
+            min_gap_m: 1.5,
+            passed: true,
+          },
+          {
+            variant_id: "v09",
+            light: "night",
+            trigger_distance_m: 11,
+            occluder: "none",
+            ego_speed_kmh: 8,
+            min_gap_m: 2.3,
+            passed: true,
+          },
+          {
+            variant_id: "v10",
+            light: "night",
+            trigger_distance_m: 9,
+            occluder: "forklift",
+            ego_speed_kmh: 8,
+            min_gap_m: 1.7,
+            passed: true,
+          },
+          {
+            variant_id: "v17",
+            light: "night",
+            trigger_distance_m: 7,
+            occluder: "pallet_stack",
+            ego_speed_kmh: 10,
+            min_gap_m: fragile ? 0.6 : 1.9,
+            passed: !fragile,
+            clip_id: "media-005",
+          },
+          {
+            variant_id: "v12",
+            light: "night",
+            trigger_distance_m: 5,
+            occluder: "pallet_stack",
+            ego_speed_kmh: 10,
+            min_gap_m: fragile ? 0.4 : 1.6,
+            passed: !fragile,
+            clip_id: "media-005",
+          },
+        ],
+        failure_report: fragile
+          ? {
+              variant_id: `${scenarioId}-v17`,
+              summary: `${scenarioId}-v17 gagal: mobil berhenti pada jarak 0.6 m dari pekerja di malam hari di balik tumpukan palet (batas 1.5 m).`,
+              conditions:
+                "Malam hari (night), pemicu pekerja 7 m, occluder pallet_stack, kecepatan ego 10 km/h.",
+              measured_gap_m: 0.6,
+              limit_gap_m: 1.5,
+              likely_cause:
+                "Deteksi terlambat dalam kondisi cahaya rendah di balik penghalang tinggi (pallet stack).",
+              suggested_fix:
+                "Turunkan kecepatan ego di area finishing_corner saat malam hari menjadi 5 km/h.",
+              clip_id: "media-005",
+            }
+          : null,
       };
       const scenario = database.scenarios.find((s) => s.scenario_id === scenarioId);
       if (scenario) scenario.status = "runnable";

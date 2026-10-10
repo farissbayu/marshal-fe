@@ -1,4 +1,5 @@
-import { Menu, PanelLeft } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Menu, PanelLeft, Sparkles } from "lucide-react";
 import { Freshness } from "@/components/common/Freshness";
 import { ActorMenu } from "@/components/layout/ActorMenu";
 import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
@@ -41,6 +42,12 @@ export function TopBar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
       </div>
 
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <Button asChild size="sm" variant="secondary" className="hidden gap-1.5 md:inline-flex">
+          <Link to="/overview">
+            <Sparkles className="size-3.5 text-primary" aria-hidden />
+            <span className="text-xs">Demo Flow</span>
+          </Link>
+        </Button>
         {mockMode && (
           <Badge variant="warning" className="hidden font-mono sm:inline-flex">
             MOCK MODE

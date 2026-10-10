@@ -11,14 +11,15 @@ export function drawCameraFrame(
 ) {
   const t = timeMs / 1000;
 
-  ctx.fillStyle = "#0c0f12";
+  // Bright daylight sky
+  ctx.fillStyle = "#93c5fd";
   ctx.fillRect(0, 0, width, height);
 
-  // Perspective ground
+  // Perspective ground (concrete industrial yard)
   const horizon = height * 0.42;
   const grad = ctx.createLinearGradient(0, horizon, 0, height);
-  grad.addColorStop(0, "#161b21");
-  grad.addColorStop(1, "#0e1114");
+  grad.addColorStop(0, "#64748b");
+  grad.addColorStop(1, "#334155");
   ctx.fillStyle = grad;
   ctx.fillRect(0, horizon, width, height - horizon);
 

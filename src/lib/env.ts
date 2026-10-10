@@ -5,9 +5,7 @@ const rawMock = import.meta.env.VITE_MOCK_MODE === "true";
  * Defaults to true in development.
  */
 export const MOCK_MODE =
-  import.meta.env.VITE_MOCK_MODE !== undefined
-    ? rawMock
-    : import.meta.env.DEV;
+  import.meta.env.VITE_MOCK_MODE !== undefined ? rawMock : import.meta.env.DEV;
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api/v1";
 

@@ -219,6 +219,13 @@ export const assistanceOptionSchema = z.object({
 });
 export type AssistanceOption = z.infer<typeof assistanceOptionSchema>;
 
+export const detectedObjectSchema = z.object({
+  label: z.string(),
+  box: z.array(z.number()),
+  confidence: z.number().optional(),
+});
+export type DetectedObject = z.infer<typeof detectedObjectSchema>;
+
 export const assistanceCaseSchema = z.object({
   case_id: z.string(),
   vin: z.string(),
@@ -235,6 +242,7 @@ export const assistanceCaseSchema = z.object({
     .optional(),
   options: z.array(assistanceOptionSchema).default([]),
   media_ids: z.array(z.string()).default([]),
+  detected_objects: z.array(detectedObjectSchema).optional().default([]),
   resolved_by: z.string().nullable().optional(),
   resolved_at: z.string().nullable().optional(),
   chosen_option: z.string().nullable().optional(),
@@ -392,6 +400,31 @@ export const validatorNoteSchema = z.object({
 });
 export type ValidatorNote = z.infer<typeof validatorNoteSchema>;
 
+export const variantRunSchema = z.object({
+  variant_id: z.string(),
+  light: z.string(),
+  weather: z.string().optional(),
+  occluder: z.string().optional(),
+  trigger_distance_m: z.number().optional(),
+  ego_speed_kmh: z.number().optional(),
+  min_gap_m: z.number().optional(),
+  passed: z.boolean(),
+  clip_id: z.string().nullable().optional(),
+});
+export type VariantRun = z.infer<typeof variantRunSchema>;
+
+export const failureReportSchema = z.object({
+  variant_id: z.string().optional(),
+  summary: z.string().optional(),
+  conditions: z.string().optional(),
+  measured_gap_m: z.number().optional(),
+  limit_gap_m: z.number().optional(),
+  likely_cause: z.string().optional(),
+  suggested_fix: z.string().optional(),
+  clip_id: z.string().nullable().optional(),
+});
+export type FailureReport = z.infer<typeof failureReportSchema>;
+
 export const scenarioDetailSchema = scenarioSchema.extend({
   spec: z.record(z.string(), z.unknown()).default({}),
   validator_notes: z.array(validatorNoteSchema).default([]),
@@ -414,6 +447,8 @@ export const scenarioDetailSchema = scenarioSchema.extend({
       metrics: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
       report_id: z.string().nullable().optional(),
       media_ids: z.array(z.string()).default([]),
+      variants: z.array(variantRunSchema).default([]),
+      failure_report: failureReportSchema.nullable().optional(),
     })
     .nullable()
     .optional(),

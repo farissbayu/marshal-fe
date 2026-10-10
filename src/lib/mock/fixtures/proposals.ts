@@ -77,5 +77,26 @@ export function proposalsFixture(now: number): Proposal[] {
       },
       created_at: iso(8, now),
     },
+    {
+      proposal_id: "PROP-010",
+      kind: "replan",
+      vin: "VIN-003",
+      category: "Yard Traffic (Flow 1 Exception)",
+      summary:
+        "Truk TRK-01 delayed 40 menit. Gemini mengusulkan re-slot 6 mobil agar muatan truk berikutnya (TRK-02) dapat dimuat lebih awal ke bay staging.",
+      payload: {
+        truck_id: "TRK-01",
+        delay_minutes: 40,
+        affected_vins: ["VIN-001", "VIN-002", "VIN-003", "VIN-004", "VIN-005", "VIN-006"],
+        action: "reslot_to_loading_bay_staging",
+      },
+      status: "pending",
+      allowed_actions: ["approve", "reject"],
+      effects: {
+        approve: "6 kendaraan di-reslot ulang ke bay muat terdekat. Delay logistik terminimalisir.",
+        reject: "Tetap pertahankan slot awal; mobil menunggu truk TRK-01 tiba.",
+      },
+      created_at: iso(2, now),
+    },
   ];
 }

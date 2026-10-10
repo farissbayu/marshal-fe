@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { FlaskConical, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { ActorBadge } from "@/components/common/ActorBadge";
 import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
@@ -14,7 +15,7 @@ import { OptionRadioGroup } from "@/components/domain/OptionRadioGroup";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { decideAssistance, fetchAssistanceCase } from "@/lib/api";
+import { createScenario, decideAssistance, fetchAssistanceCase } from "@/lib/api";
 import { POLL_INTERVAL_MS } from "@/lib/env";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDateTime } from "@/lib/format";
@@ -33,6 +34,7 @@ function AssistanceDetailPage() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [labJobId, setLabJobId] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["assistance", case_id],
@@ -49,6 +51,18 @@ function AssistanceDetailPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["assistance"] });
       setConfirmOpen(false);
+    },
+  });
+
+  const sendToLab = useMutation({
+    mutationFn: () =>
+      createScenario({
+        situation: `Case ${data?.case_id} (${data?.vin}): ${data?.situation}`,
+        source: `case-${data?.case_id}`,
+      }),
+    onSuccess: (res) => {
+      setLabJobId(res.job_id);
+      queryClient.invalidateQueries({ queryKey: ["lab"] });
     },
   });
 
@@ -76,8 +90,40 @@ function AssistanceDetailPage() {
       <PageHeader
         title={`Case ${data.case_id}`}
         breadcrumbs={[{ label: "Assistance", to: "/assistance" }, { label: data.case_id }]}
-        actions={<StatusBadge status={data.status} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={sendToLab.isPending || !!labJobId}
+              onClick={() => sendToLab.mutate()}
+              title="Kirim insiden ini ke Test Lab untuk diuji variasinya"
+            >
+              {sendToLab.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <FlaskConical className="size-3.5" />
+              )}
+              {labJobId ? "Terkirim ke Lab" : "Kirim ke Test Lab"}
+            </Button>
+            <StatusBadge status={data.status} />
+          </div>
+        }
       />
+
+      {labJobId && (
+        <div className="flex items-center justify-between rounded-md border border-info/30 bg-info/5 p-3 text-xs text-info">
+          <span>
+            Insiden berhasil dikirim ke Test Lab (Job: {labJobId}). Kasus ini akan dikompilasi
+            menjadi skenario CARLA.
+          </span>
+          <Button asChild size="sm" variant="ghost" className="h-6 text-xs text-info underline">
+            <Link to="/lab" search={{ tab: "requests" }}>
+              Lihat di Test Lab →
+            </Link>
+          </Button>
+        </div>
+      )}
 
       {data.moving_people_or_equipment && (
         <RiskIndicator
@@ -127,7 +173,12 @@ function AssistanceDetailPage() {
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {data.media_ids.map((mediaId) => (
-                    <EvidenceViewer key={mediaId} mediaId={mediaId} label={data.case_id} />
+                    <EvidenceViewer
+                      key={mediaId}
+                      mediaId={mediaId}
+                      label={data.case_id}
+                      boxes={data.detected_objects}
+                    />
                   ))}
                 </div>
               )}

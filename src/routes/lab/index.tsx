@@ -128,14 +128,43 @@ function RequestsTab() {
           <CardTitle>Generate Scenario</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="space-y-1">
-            <Label htmlFor="situation">Deskripsi situasi (bahasa alami)</Label>
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-1">
+              <Label htmlFor="situation">Deskripsi situasi (bahasa alami)</Label>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="text-fg-subtle">Contoh demo:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSituation(
+                      "A worker steps out from behind a parked forklift at dusk while a car turns into the finishing lane.",
+                    );
+                    setSource("manual");
+                  }}
+                  className="rounded border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-primary hover:bg-primary/20"
+                >
+                  Worker & Forklift (Flow 6 Demo)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSituation(
+                      "Cardboard box in lane near finishing, car stopped 4 m before it with worker nearby.",
+                    );
+                    setSource("case-01");
+                  }}
+                  className="rounded border border-border bg-surface-2 px-1.5 py-0.5 text-fg-muted hover:text-fg"
+                >
+                  Eskalasi Incident case-01
+                </button>
+              </div>
+            </div>
             <Textarea
               id="situation"
               rows={3}
               value={situation}
               onChange={(e) => setSituation(e.target.value)}
-              placeholder="mis. Kendaraan berhenti karena forklift melintas di jalur keluar."
+              placeholder="mis. A worker steps out from behind a parked forklift at dusk while a car turns into the finishing lane."
             />
           </div>
           <div className="space-y-1">

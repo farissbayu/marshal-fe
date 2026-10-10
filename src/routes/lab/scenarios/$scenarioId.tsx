@@ -4,6 +4,7 @@ import { AlertTriangle, Check, Loader2, Play, X } from "lucide-react";
 import { useState } from "react";
 import { ActorBadge } from "@/components/common/ActorBadge";
 import { ErrorPanel } from "@/components/common/ErrorPanel";
+import { EvidenceViewer } from "@/components/common/EvidenceViewer";
 import { JobStatusPanel } from "@/components/common/JobStatusPanel";
 import { LoadingDetail } from "@/components/common/LoadingState";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -25,6 +26,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { formatDateTime } from "@/lib/format";
 import { roleLabel } from "@/lib/role";
 import { useAuthStore } from "@/lib/stores/auth";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/lab/scenarios/$scenarioId")({
   component: ScenarioDetailPage,
@@ -286,17 +288,202 @@ function AdversarialResult({
 }: {
   result: NonNullable<Awaited<ReturnType<typeof fetchScenario>>["adversarial_result"]>;
 }) {
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const variants = result.variants ?? [];
+  const selectedVariant =
+    variants.find((v) => v.variant_id === selectedVariantId) ??
+    (result.smallest_failing_variant
+      ? variants.find((v) => v.variant_id === result.smallest_failing_variant || !v.passed)
+      : variants[0]);
+
+  const lights = ["noon", "dusk", "night"];
+  const distances = Array.from(
+    new Set(
+      variants.map((v) => v.trigger_distance_m).filter((d): d is number => typeof d === "number"),
+    ),
+  ).sort((a, b) => b - a);
+
+  const failureReport = result.failure_report;
+  const failureClipId = failureReport?.clip_id || result.media_ids?.[0];
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <Badge variant={result.verdict === "ROBUST" ? "success" : "danger"}>{result.verdict}</Badge>
-        <span className="text-xs text-fg-muted">{result.runs} run</span>
+        <span className="text-xs text-fg-muted">{result.runs} run dievaluasi</span>
         {result.smallest_failing_variant && (
-          <span className="text-xs text-danger">
-            Failing variant: {result.smallest_failing_variant}
+          <span className="text-xs font-semibold text-danger">
+            Failing variant terkecil: {result.smallest_failing_variant}
           </span>
         )}
       </div>
+
+      {/* Matriks Variasi Adversarial (Variant Grid) */}
+      {variants.length > 0 && (
+        <div className="space-y-2 rounded-md border border-border bg-surface-2 p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-fg">
+              Matriks Variasi Adversarial (Pencahayaan × Jarak Pemicu)
+            </span>
+            <span className="text-[11px] text-fg-subtle">
+              Klik sel untuk melihat detail variasi
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-left">
+                  <th className="p-2 font-mono text-fg-subtle">Cahaya \ Jarak</th>
+                  {distances.map((dist) => (
+                    <th key={dist} className="p-2 text-center font-mono text-fg-subtle">
+                      {dist} m
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {lights.map((light) => (
+                  <tr key={light} className="border-b border-border/50">
+                    <td className="p-2 font-medium capitalize text-fg">{light}</td>
+                    {distances.map((dist) => {
+                      const match = variants.find(
+                        (v) =>
+                          v.light.toLowerCase() === light.toLowerCase() &&
+                          v.trigger_distance_m === dist,
+                      );
+                      if (!match) {
+                        return (
+                          <td key={dist} className="p-2 text-center text-fg-subtle">
+                            —
+                          </td>
+                        );
+                      }
+                      const isSelected = selectedVariant?.variant_id === match.variant_id;
+                      return (
+                        <td key={dist} className="p-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedVariantId(match.variant_id)}
+                            className={cn(
+                              "w-full rounded px-2 py-1 font-mono text-[11px] font-medium transition-all",
+                              match.passed
+                                ? "bg-success/15 text-success hover:bg-success/25"
+                                : "border border-danger/60 bg-danger/20 font-bold text-danger hover:bg-danger/30",
+                              isSelected && "ring-2 ring-primary ring-offset-1 ring-offset-bg",
+                            )}
+                            title={`Variant: ${match.variant_id} | Gap: ${match.min_gap_m ?? "—"}m | Occluder: ${match.occluder ?? "none"}`}
+                          >
+                            {match.min_gap_m !== undefined
+                              ? `${match.min_gap_m}m`
+                              : match.passed
+                                ? "PASS"
+                                : "FAIL"}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {selectedVariant && (
+            <div className="mt-2 rounded border border-border bg-bg p-2 text-xs text-fg-muted">
+              <span className="font-semibold text-fg">{selectedVariant.variant_id}:</span> Cahaya:{" "}
+              <span className="font-mono capitalize">{selectedVariant.light}</span> · Jarak:{" "}
+              <span className="font-mono">{selectedVariant.trigger_distance_m ?? "—"} m</span> ·
+              Occluder: <span className="font-mono">{selectedVariant.occluder ?? "none"}</span> ·
+              Kecepatan:{" "}
+              <span className="font-mono">{selectedVariant.ego_speed_kmh ?? "—"} km/h</span> ·
+              Status:{" "}
+              <span
+                className={cn(
+                  "font-semibold",
+                  selectedVariant.passed ? "text-success" : "text-danger",
+                )}
+              >
+                {selectedVariant.passed ? "PASS" : "FAIL"} (Gap: {selectedVariant.min_gap_m ?? "—"}
+                m)
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Laporan Kegagalan & Replay Clip (Flow 7 Failure Report) */}
+      {(failureReport || result.verdict === "FRAGILE" || failureClipId) && (
+        <div className="space-y-3 rounded-md border border-danger/30 bg-danger/5 p-4">
+          <div className="flex items-center gap-2">
+            <Badge variant="danger">Laporan Kegagalan Adversarial</Badge>
+            {failureReport?.variant_id && (
+              <span className="font-mono text-xs font-semibold text-fg">
+                {failureReport.variant_id}
+              </span>
+            )}
+          </div>
+
+          {failureReport?.summary && (
+            <p className="text-xs font-medium text-fg">{failureReport.summary}</p>
+          )}
+
+          <div className="grid gap-2 text-xs sm:grid-cols-2">
+            {failureReport?.conditions && (
+              <div className="rounded bg-surface-2 p-2">
+                <span className="block text-[10px] uppercase tracking-wide text-fg-subtle">
+                  Kondisi Pengujian
+                </span>
+                <span className="text-fg">{failureReport.conditions}</span>
+              </div>
+            )}
+            {failureReport?.measured_gap_m !== undefined && (
+              <div className="rounded bg-surface-2 p-2">
+                <span className="block text-[10px] uppercase tracking-wide text-fg-subtle">
+                  Jarak Berhenti Terukur vs Batas
+                </span>
+                <span className="font-mono font-semibold text-danger">
+                  {failureReport.measured_gap_m} m{" "}
+                  <span className="text-fg-subtle">
+                    (batas {failureReport.limit_gap_m ?? 1.5} m)
+                  </span>
+                </span>
+              </div>
+            )}
+            {failureReport?.likely_cause && (
+              <div className="rounded bg-surface-2 p-2">
+                <span className="block text-[10px] uppercase tracking-wide text-fg-subtle">
+                  Kemungkinan Penyebab
+                </span>
+                <span className="text-fg">{failureReport.likely_cause}</span>
+              </div>
+            )}
+            {failureReport?.suggested_fix && (
+              <div className="rounded bg-surface-2 p-2">
+                <span className="block text-[10px] uppercase tracking-wide text-fg-subtle">
+                  Rekomendasi Perbaikan
+                </span>
+                <span className="text-success">{failureReport.suggested_fix}</span>
+              </div>
+            )}
+          </div>
+
+          {failureClipId && (
+            <div className="mt-2 space-y-1">
+              <span className="text-[11px] font-medium text-fg-muted">
+                Rekaman Replay Kegagalan (Video CARLA):
+              </span>
+              <div className="max-w-md">
+                <EvidenceViewer
+                  mediaId={failureClipId}
+                  label={failureReport?.variant_id ?? "Failure Clip"}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {result.criteria && (
         <Table>
           <TableHeader>
@@ -315,6 +502,7 @@ function AdversarialResult({
           </TableBody>
         </Table>
       )}
+
       {result.metrics && (
         <div className="flex flex-wrap gap-4">
           {Object.entries(result.metrics).map(([key, value]) => (

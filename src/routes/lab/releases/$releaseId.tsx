@@ -1,15 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check, Loader2, Play, X } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Play, X } from "lucide-react";
 import { useState } from "react";
 import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
 import { ErrorPanel } from "@/components/common/ErrorPanel";
+import { EvidenceViewer } from "@/components/common/EvidenceViewer";
 import { JobStatusPanel } from "@/components/common/JobStatusPanel";
 import { LoadingDetail } from "@/components/common/LoadingState";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -34,6 +36,7 @@ function ReleaseDetailPage() {
   const queryClient = useQueryClient();
   const [activeJob, setActiveJob] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["lab", "release", releaseId],
@@ -107,6 +110,20 @@ function ReleaseDetailPage() {
         }
       />
 
+      {release.gate === "blocked" && (
+        <div className="flex items-start gap-3 rounded-lg border border-danger/40 bg-danger/10 p-4 text-danger">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0" aria-hidden />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">{release.failed} failing test, release blocked</p>
+            <p className="text-xs text-danger/90">
+              Regression suite mendeteksi kegagalan safety-critical di simulator CARLA. Release
+              software pengemudi otomatis tidak dapat disetujui sampai seluruh regresi lulus
+              (Target: 0 failure).
+            </p>
+          </div>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Evaluasi</CardTitle>
@@ -154,6 +171,7 @@ function ReleaseDetailPage() {
               <TableHeader>
                 <TableRow className="hover:bg-surface-2">
                   <TableHead>Test ID</TableHead>
+                  <TableHead>Skenario</TableHead>
                   <TableHead>Metric</TableHead>
                   <TableHead>Criteria</TableHead>
                   <TableHead>Result</TableHead>
@@ -164,21 +182,46 @@ function ReleaseDetailPage() {
                 {release.tests.map((test) => (
                   <TableRow key={test.test_id} className={cn(!test.passed && "bg-danger/5")}>
                     <TableCell className="font-mono text-fg">{test.test_id}</TableCell>
+                    <TableCell>
+                      {test.scenario_id ? (
+                        <Link
+                          to="/lab/scenarios/$scenarioId"
+                          params={{ scenarioId: test.scenario_id }}
+                          className="font-mono text-xs text-primary hover:underline"
+                        >
+                          {test.scenario_id} →
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
                     <TableCell className={cn("tabular", !test.passed && "text-danger")}>
                       {test.metric}
                     </TableCell>
                     <TableCell className="tabular">{test.criteria}</TableCell>
                     <TableCell className="tabular">{test.result}</TableCell>
                     <TableCell>
-                      {test.passed ? (
-                        <span className="inline-flex items-center gap-1 text-success">
-                          <Check className="size-3.5" aria-hidden /> PASS
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-danger">
-                          <X className="size-3.5" aria-hidden /> FAIL
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {test.passed ? (
+                          <span className="inline-flex items-center gap-1 text-success">
+                            <Check className="size-3.5" aria-hidden /> PASS
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 font-semibold text-danger">
+                            <X className="size-3.5" aria-hidden /> FAIL
+                          </span>
+                        )}
+                        {test.media_ids && test.media_ids.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-1.5 text-[11px] text-primary underline"
+                            onClick={() => setSelectedMediaId(test.media_ids?.[0] ?? null)}
+                          >
+                            Klip
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -215,6 +258,17 @@ function ReleaseDetailPage() {
           ← Kembali ke daftar release
         </Link>
       </Button>
+
+      <Dialog open={!!selectedMediaId} onOpenChange={(open) => !open && setSelectedMediaId(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Rekaman Uji Regresi</DialogTitle>
+          </DialogHeader>
+          {selectedMediaId && (
+            <EvidenceViewer mediaId={selectedMediaId} label="Regression Replay" />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <ConfirmActionDialog
         open={confirmOpen}

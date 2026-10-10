@@ -6,6 +6,7 @@ import { KpiCard } from "@/components/common/KpiCard";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatusBadge, VehicleStatusBadge } from "@/components/common/StatusBadge";
 import { WaitingTimeBadge } from "@/components/common/WaitingTimeBadge";
+import { FlowDemoWalkthrough } from "@/components/domain/FlowDemoWalkthrough";
 import { LiveActivityFeed } from "@/components/domain/LiveActivityFeed";
 import { PlantCameraFeed } from "@/components/domain/PlantCameraFeed";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,8 @@ function OverviewPage() {
         title="Overview"
         description="Ringkasan shift, monitoring CCTV live, dan aliran aktivitas AI (Flow 1–7)."
       />
+
+      <FlowDemoWalkthrough />
 
       {kpis.isError && <ErrorPanel error={kpis.error} onRetry={() => kpis.refetch()} />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
