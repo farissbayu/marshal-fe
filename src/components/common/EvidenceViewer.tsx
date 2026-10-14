@@ -1,9 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Image as ImageIcon, ImageOff, Loader2, Video } from "lucide-react";
+import { Image as ImageIcon, ImageOff, Loader2, RefreshCw, Video } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { fetchMedia } from "@/lib/api";
-import { ApiError } from "@/lib/errors";
+import { ApiError, type ApiErrorKind } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+
+const RETRYABLE_KINDS: ApiErrorKind[] = ["timeout", "network", "unavailable", "server"];
 
 export interface EvidenceBox {
   label?: string;
@@ -22,23 +25,28 @@ export function EvidenceViewer({
   className,
   compact,
   boxes,
+  fill,
 }: {
   mediaId: string;
   label?: string;
   className?: string;
   compact?: boolean;
   boxes?: EvidenceBox[];
+  /** Renders the media edge-to-edge (aspect-video) for panel embedding. */
+  fill?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const query = useQuery({
     queryKey: ["media", mediaId],
     queryFn: () => fetchMedia(mediaId),
-    retry: false,
+    retry: (failureCount, error) =>
+      failureCount < 1 && error instanceof ApiError && RETRYABLE_KINDS.includes(error.kind),
     staleTime: 60_000,
   });
 
   const unavailable = query.isError || (query.data && !query.data.available);
   const errorKind = query.error instanceof ApiError ? query.error.kind : undefined;
+  const retryable = errorKind !== undefined && RETRYABLE_KINDS.includes(errorKind);
 
   if (query.isLoading) {
     return (
@@ -61,23 +69,60 @@ export function EvidenceViewer({
       <div
         className={cn(
           "flex flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border bg-surface-2 px-3 text-center",
-          compact ? "h-24" : "h-48",
+          fill ? "aspect-video" : compact ? "h-24" : "h-48",
           className,
         )}
       >
         <ImageOff className="size-5 text-fg-subtle" aria-hidden />
         <p className="text-xs text-fg-muted">
-          {errorKind === "not_found" || errorKind === "validation"
-            ? "Media telah kedaluwarsa"
-            : "Media tidak tersedia"}
+          {retryable
+            ? "Media belum bisa dimuat dari server."
+            : errorKind === "not_found" || errorKind === "validation"
+              ? "Media telah kedaluwarsa"
+              : "Media tidak tersedia"}
         </p>
         <p className="font-mono text-[10px] text-fg-subtle">{mediaId}</p>
+        {retryable && (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="mt-1"
+            onClick={() => query.refetch()}
+            disabled={query.isFetching}
+          >
+            {query.isFetching ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="size-3.5" />
+            )}
+            Coba lagi
+          </Button>
+        )}
       </div>
     );
   }
 
   const media = query.data;
   if (!media) return null;
+
+  // Raw gs:// means the API has no GCS credentials; the browser cannot play it.
+  if (media.url.startsWith("gs://")) {
+    return (
+      <div
+        className={cn(
+          "flex flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border bg-surface-2 px-3 text-center",
+          fill ? "aspect-video" : compact ? "h-24" : "h-48",
+          className,
+        )}
+      >
+        <ImageOff className="size-5 text-fg-subtle" aria-hidden />
+        <p className="text-xs text-fg-muted">
+          Media belum dapat diputar: GCS belum dikonfigurasi di API.
+        </p>
+        <p className="font-mono text-[10px] text-fg-subtle">{media.url}</p>
+      </div>
+    );
+  }
 
   const isVideo =
     media.kind === "clip" &&
@@ -86,19 +131,23 @@ export function EvidenceViewer({
       media.url.endsWith(".webm") ||
       (!media.url.startsWith("data:image/") && !media.content_type.startsWith("image/")));
 
+  const mediaSize = fill ? "h-full w-full" : compact ? "h-24" : expanded ? "max-h-[70vh]" : "h-48";
+
   return (
     <div className={cn("space-y-1", className)}>
       {isVideo ? (
-        <div className="relative block w-full overflow-hidden rounded-md border border-border bg-black">
+        <div
+          className={cn(
+            "relative block w-full overflow-hidden bg-black",
+            fill ? "aspect-video" : "rounded-md border border-border",
+          )}
+        >
           <video
             src={media.url}
             controls
             muted
             playsInline
-            className={cn(
-              "mx-auto w-full object-contain",
-              compact ? "h-24" : expanded ? "max-h-[70vh]" : "h-48",
-            )}
+            className={cn("mx-auto w-full object-contain", mediaSize)}
             aria-label={label ?? `Evidence ${mediaId}`}
           >
             Browser Anda tidak mendukung tag video.
@@ -108,7 +157,10 @@ export function EvidenceViewer({
       ) : (
         <button
           type="button"
-          className="relative block w-full overflow-hidden rounded-md border border-border bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          className={cn(
+            "relative block w-full overflow-hidden bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+            fill ? "aspect-video" : "rounded-md border border-border",
+          )}
           onClick={() => setExpanded((v) => !v)}
           aria-label={expanded ? "Perkecil media" : "Perbesar media"}
         >
@@ -116,25 +168,24 @@ export function EvidenceViewer({
             src={media.url}
             alt={label ?? `Evidence ${mediaId}`}
             loading="lazy"
-            className={cn(
-              "mx-auto w-full object-contain",
-              compact ? "h-24" : expanded ? "max-h-[70vh]" : "h-48",
-            )}
+            className={cn("mx-auto w-full object-contain", mediaSize)}
           />
           {renderBoxes(boxes)}
         </button>
       )}
 
-      <p className="flex items-center gap-1 font-mono text-[10px] text-fg-subtle">
-        {media.kind === "clip" ? (
-          <Video className="size-3 text-info" aria-hidden />
-        ) : (
-          <ImageIcon className="size-3" aria-hidden />
-        )}
-        {label ? `${label} · ` : ""}
-        {media.media_id} · {media.kind}
-        {media.kind === "clip" && isVideo ? " (MP4)" : ""}
-      </p>
+      {!fill && (
+        <p className="flex items-center gap-1 font-mono text-[10px] text-fg-subtle">
+          {media.kind === "clip" ? (
+            <Video className="size-3 text-info" aria-hidden />
+          ) : (
+            <ImageIcon className="size-3" aria-hidden />
+          )}
+          {label ? `${label} · ` : ""}
+          {media.media_id} · {media.kind}
+          {media.kind === "clip" && isVideo ? " (MP4)" : ""}
+        </p>
+      )}
     </div>
   );
 }

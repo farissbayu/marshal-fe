@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { FlaskConical, Loader2 } from "lucide-react";
+import {
+  Activity,
+  CircleCheck,
+  FlaskConical,
+  Loader2,
+  Sparkles,
+  UserCircle2,
+  Video,
+} from "lucide-react";
 import { useState } from "react";
 import { ActorBadge } from "@/components/common/ActorBadge";
 import { ConfirmActionDialog } from "@/components/common/ConfirmActionDialog";
@@ -11,6 +19,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { RiskIndicator } from "@/components/common/RiskIndicator";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { WaitingTimeBadge } from "@/components/common/WaitingTimeBadge";
+import { AssistanceProgress } from "@/components/domain/AssistanceProgress";
 import { OptionRadioGroup } from "@/components/domain/OptionRadioGroup";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +28,7 @@ import { createScenario, decideAssistance, fetchAssistanceCase } from "@/lib/api
 import { POLL_INTERVAL_MS } from "@/lib/env";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDateTime } from "@/lib/format";
+import { roleLabel } from "@/lib/role";
 import { useAuthStore } from "@/lib/stores/auth";
 import { usePollingEnabled } from "@/lib/use-polling";
 import { cn } from "@/lib/utils";
@@ -82,6 +92,7 @@ function AssistanceDetailPage() {
   const data = query.data;
   if (!data) return null;
   const resolved = data.status === "RESOLVED";
+  const canDecide = actor?.role === "supervisor";
   const selectedOption = data.options.find((o) => o.id === selected);
   const recommendation = data.recommendation;
 
@@ -106,10 +117,21 @@ function AssistanceDetailPage() {
               )}
               {labJobId ? "Terkirim ke Lab" : "Kirim ke Test Lab"}
             </Button>
+            <EvidenceSourceBadge source={data.source} clipUri={data.clip_uri} />
             <StatusBadge status={data.status} />
           </div>
         }
       />
+
+      <Card>
+        <CardContent className="p-4">
+          <AssistanceProgress
+            status={data.status}
+            openedAt={data.opened_at}
+            resolvedAt={data.resolved_at}
+          />
+        </CardContent>
+      </Card>
 
       {labJobId && (
         <div className="flex items-center justify-between rounded-md border border-info/30 bg-info/5 p-3 text-xs text-info">
@@ -169,7 +191,7 @@ function AssistanceDetailPage() {
             </CardHeader>
             <CardContent>
               {data.media_ids.length === 0 ? (
-                <p className="text-xs text-fg-subtle">Tidak ada media untuk case ini.</p>
+                <p className="text-xs text-fg-subtle">Bukti tidak tersedia untuk case ini.</p>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {data.media_ids.map((mediaId) => (
@@ -210,7 +232,9 @@ function AssistanceDetailPage() {
                   </p>
                 </>
               ) : (
-                <p className="text-xs text-fg-subtle">Tidak ada rekomendasi dari agent.</p>
+                <p className="text-xs text-fg-subtle">
+                  Agent tidak menemukan opsi aman. Pilihan tetap milik supervisor.
+                </p>
               )}
             </CardContent>
           </Card>
@@ -222,19 +246,41 @@ function AssistanceDetailPage() {
           <CardHeader>
             <CardTitle>Hasil Keputusan</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-fg-subtle">Opsi terpilih:</span>
+          <CardContent className="space-y-3">
+            <DecisionRow icon={<Video className="size-3" aria-hidden />} label="Sumber bukti">
+              <EvidenceSourceBadge source={data.source} clipUri={data.clip_uri} />
+              <span>
+                {data.media_ids.length} media · {data.detected_objects.length} objek terdeteksi
+              </span>
+            </DecisionRow>
+            <DecisionRow icon={<Sparkles className="size-3" aria-hidden />} label="Rekomendasi AI">
+              {recommendation ? (
+                <>
+                  <Badge variant="info" className="font-mono">
+                    {recommendation.option_id}
+                  </Badge>
+                  <span>Confidence {Math.round(recommendation.confidence * 100)}%</span>
+                </>
+              ) : (
+                <span>Agent tidak menemukan opsi aman.</span>
+              )}
+            </DecisionRow>
+            <DecisionRow
+              icon={<CircleCheck className="size-3" aria-hidden />}
+              label="Opsi terpilih"
+            >
               <Badge variant="success" className="font-mono">
                 {data.chosen_option}
               </Badge>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-fg-muted">
-              <span>Resolved by</span>
+              {data.result && <span>{data.result}</span>}
+            </DecisionRow>
+            <DecisionRow
+              icon={<UserCircle2 className="size-3" aria-hidden />}
+              label="Diputuskan oleh"
+            >
               <ActorBadge actorId={data.resolved_by} />
               <span>{formatDateTime(data.resolved_at ?? "")}</span>
-            </div>
-            {data.result && <p className="text-sm text-fg-muted">{data.result}</p>}
+            </DecisionRow>
           </CardContent>
         </Card>
       ) : (
@@ -247,18 +293,28 @@ function AssistanceDetailPage() {
               options={data.options}
               value={selected}
               onChange={setSelected}
-              disabled={mutation.isPending}
+              disabled={mutation.isPending || !canDecide}
             />
 
             <p className="text-[11px] text-fg-subtle">
               Actor pengirim: <span className="font-mono">{actor?.actor_id ?? "—"}</span> (dari
               sesi)
             </p>
+            {!canDecide && (
+              <p className="text-xs text-warning">
+                Hanya supervisor yang dapat mengirim keputusan. Role Anda:{" "}
+                {actor ? roleLabel(actor.role) : "belum login"}.
+              </p>
+            )}
             {mutation.isError && (
               <p className="text-xs text-danger">{getErrorMessage(mutation.error)}</p>
             )}
 
-            <Button disabled={!selected || mutation.isPending} onClick={() => setConfirmOpen(true)}>
+            <Button
+              disabled={!selected || mutation.isPending || !canDecide}
+              title={canDecide ? undefined : "Hanya supervisor yang dapat memutuskan"}
+              onClick={() => setConfirmOpen(true)}
+            >
               Submit Keputusan
             </Button>
           </CardContent>
@@ -298,6 +354,63 @@ function Field({
     <div className={cn("rounded-md border border-border bg-surface-2 p-3", className)}>
       <p className="text-[10px] uppercase tracking-wide text-fg-subtle">{label}</p>
       <div className="mt-1 text-sm text-fg">{children}</div>
+    </div>
+  );
+}
+
+function clipName(uri: string): string {
+  return uri.split("/").filter(Boolean).pop() ?? uri;
+}
+
+/** Chip "Rekaman CARLA" / "Live"; hidden until the backend sends `source`. */
+function EvidenceSourceBadge({
+  source,
+  clipUri,
+}: {
+  source?: string | null;
+  clipUri?: string | null;
+}) {
+  if (source !== "car_evidence" && source !== "live") return null;
+  const carEvidence = source === "car_evidence";
+  return (
+    <Badge
+      variant={carEvidence ? "info" : "neutral"}
+      title={clipUri || undefined}
+      className="gap-1"
+    >
+      {carEvidence ? (
+        <Video className="size-3" aria-hidden />
+      ) : (
+        <Activity className="size-3" aria-hidden />
+      )}
+      {carEvidence ? "Rekaman CARLA" : "Live"}
+      {carEvidence && clipUri && (
+        <span className="font-mono text-[10px] opacity-80">{clipName(clipUri)}</span>
+      )}
+    </Badge>
+  );
+}
+
+function DecisionRow({
+  icon,
+  label,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-surface-2 text-fg-muted">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[10px] uppercase tracking-wide text-fg-subtle">{label}</p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+          {children}
+        </div>
+      </div>
     </div>
   );
 }

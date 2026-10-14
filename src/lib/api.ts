@@ -216,7 +216,8 @@ export const fetchJob = (jobId: string) =>
   api.get(`/jobs/${encodeURIComponent(jobId)}`, { schema: jobSchema });
 
 export const fetchMedia = (mediaId: string) =>
-  api.get(`/media/${encodeURIComponent(mediaId)}`, { schema: mediaSchema });
+  // GCS cold fetch can exceed the default 12s timeout on first access.
+  api.get(`/media/${encodeURIComponent(mediaId)}`, { schema: mediaSchema, timeoutMs: 30_000 });
 
 /* ------------------------------- dev actor -------------------------------- */
 

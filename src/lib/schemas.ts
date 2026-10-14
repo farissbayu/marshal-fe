@@ -232,6 +232,9 @@ export const detectedObjectSchema = z.object({
 });
 export type DetectedObject = z.infer<typeof detectedObjectSchema>;
 
+export const assistanceSourceSchema = z.enum(["car_evidence", "live", "seed"]);
+export type AssistanceSource = z.infer<typeof assistanceSourceSchema>;
+
 export const assistanceCaseSchema = z.object({
   case_id: z.string(),
   vin: z.string(),
@@ -253,6 +256,8 @@ export const assistanceCaseSchema = z.object({
   options: z.array(assistanceOptionSchema).default([]),
   media_ids: z.array(z.string()).default([]),
   detected_objects: z.array(detectedObjectSchema).optional().default([]),
+  source: assistanceSourceSchema.nullable().optional(),
+  clip_uri: z.string().nullable().optional(),
   resolved_by: z.string().nullable().optional(),
   resolved_at: z.string().nullable().optional(),
   chosen_option: z.string().nullable().optional(),
@@ -438,7 +443,10 @@ export type FailureReport = z.infer<typeof failureReportSchema>;
 export const scenarioDetailSchema = scenarioSchema.extend({
   spec: z.record(z.string(), z.unknown()).default({}),
   validator_notes: z.array(validatorNoteSchema).default([]),
-  dry_run_metrics: z.record(z.string(), z.union([z.string(), z.number()])).nullable().optional(),
+  dry_run_metrics: z
+    .record(z.string(), z.union([z.string(), z.number()]))
+    .nullable()
+    .optional(),
   review: z
     .object({
       decision: z.string(),
@@ -454,7 +462,10 @@ export const scenarioDetailSchema = scenarioSchema.extend({
       verdict: z.enum(["ROBUST", "FRAGILE"]),
       smallest_failing_variant: z.string().nullable().optional(),
       criteria: z.record(z.string(), z.string()).nullable().optional(),
-      metrics: z.record(z.string(), z.union([z.string(), z.number()])).nullable().optional(),
+      metrics: z
+        .record(z.string(), z.union([z.string(), z.number()]))
+        .nullable()
+        .optional(),
       report_id: z.string().nullable().optional(),
       media_ids: z.array(z.string()).default([]),
       variants: z.array(variantRunSchema).default([]),

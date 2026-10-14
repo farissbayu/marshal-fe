@@ -1,3 +1,5 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
   Activity,
   AlertTriangle,
@@ -16,9 +18,14 @@ import {
   Wrench,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { EvidenceViewer } from "@/components/common/EvidenceViewer";
+import { StatusBadge } from "@/components/common/StatusBadge";
+import { WaitingTimeBadge } from "@/components/common/WaitingTimeBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { fetchAssistanceCases } from "@/lib/api";
+import { POLL_INTERVAL_MS } from "@/lib/env";
 import { drawCameraFrame } from "@/lib/mock/camera-simulator";
 import {
   type AnyFlowTelemetry,
@@ -28,8 +35,10 @@ import {
   type FlowId,
   ThreeCCTVScene,
 } from "@/lib/mock/three-camera-simulator";
+import type { AssistanceCase } from "@/lib/schemas";
 import { useAppStore } from "@/lib/stores/app";
 import { useCameraStore } from "@/lib/stores/camera";
+import { usePollingEnabled } from "@/lib/use-polling";
 import { cn } from "@/lib/utils";
 
 const FLOW_TABS: Array<{
@@ -54,6 +63,19 @@ export function PlantCameraFeed({ className }: { className?: string }) {
   const [activeFlow, setActiveFlow] = useState<FlowId>(1);
   const [autoTour, setAutoTour] = useState(false);
   const [preset, setPreset] = useState<CameraPreset>("CAM-LINE-04");
+  const [replayOn, setReplayOn] = useState(true);
+  const pollingEnabled = usePollingEnabled();
+
+  // Replay the latest CARLA evidence clip (from GCS via /media) while a case is open.
+  const casesQuery = useQuery({
+    queryKey: ["assistance", "open"],
+    queryFn: () => fetchAssistanceCases({ open: true, limit: 50 }),
+    refetchInterval: pollingEnabled ? POLL_INTERVAL_MS : false,
+  });
+  const replayCase =
+    casesQuery.data?.items.find((c) => c.source === "car_evidence" && c.media_ids.length > 0) ??
+    casesQuery.data?.items.find((c) => c.media_ids.length > 0);
+  const replaying = Boolean(replayCase) && replayOn;
 
   // Auto Tour cycle through all 7 flows every 7.5 seconds
   useEffect(() => {
@@ -81,11 +103,40 @@ export function PlantCameraFeed({ className }: { className?: string }) {
         <div className="flex items-center gap-2">
           <Camera className="size-4 text-fg-muted" aria-hidden />
           <span className="text-sm font-medium text-fg">Plant CCTV Digital Twin</span>
-          <FeedStatusBadge status={status} paused={paused} />
+          <FeedStatusBadge status={status} paused={paused} replay={replaying} />
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          {mockMode && (
+          {replayCase && (
+            <div className="flex items-center gap-1 rounded-md border border-border bg-surface-2 p-0.5">
+              <button
+                type="button"
+                onClick={() => setReplayOn(false)}
+                className={cn(
+                  "rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors",
+                  replaying
+                    ? "text-fg-subtle hover:bg-surface hover:text-fg"
+                    : "bg-primary font-semibold text-primary-fg",
+                )}
+              >
+                Live
+              </button>
+              <button
+                type="button"
+                onClick={() => setReplayOn(true)}
+                className={cn(
+                  "rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors",
+                  replaying
+                    ? "bg-primary font-semibold text-primary-fg"
+                    : "text-fg-subtle hover:bg-surface hover:text-fg",
+                )}
+              >
+                CARLA Replay
+              </button>
+            </div>
+          )}
+
+          {mockMode && !replaying && (
             <div className="flex items-center gap-1 rounded-md border border-border bg-surface-2 p-0.5">
               {(
                 [
@@ -131,35 +182,39 @@ export function PlantCameraFeed({ className }: { className?: string }) {
             </div>
           )}
 
-          <label className="flex items-center gap-1.5 text-xs text-fg-muted">
-            <span>{mode === "stream" ? "Stream Live" : "Snapshot"}</span>
-            <Switch
-              checked={mode === "snapshot"}
-              onCheckedChange={(checked) => setMode(checked ? "snapshot" : "stream")}
-              aria-label="Ganti mode stream / snapshot"
-            />
-          </label>
-          <Button
-            size="icon-sm"
-            variant="secondary"
-            aria-label={paused ? "Lanjutkan feed" : "Jeda feed"}
-            onClick={() => setPaused((p) => !p)}
-          >
-            {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="secondary"
-            aria-label="Reconnect feed"
-            onClick={reconnect}
-          >
-            <RefreshCw className="size-3.5" />
-          </Button>
+          {!replaying && (
+            <>
+              <label className="flex items-center gap-1.5 text-xs text-fg-muted">
+                <span>{mode === "stream" ? "Stream Live" : "Snapshot"}</span>
+                <Switch
+                  checked={mode === "snapshot"}
+                  onCheckedChange={(checked) => setMode(checked ? "snapshot" : "stream")}
+                  aria-label="Ganti mode stream / snapshot"
+                />
+              </label>
+              <Button
+                size="icon-sm"
+                variant="secondary"
+                aria-label={paused ? "Lanjutkan feed" : "Jeda feed"}
+                onClick={() => setPaused((p) => !p)}
+              >
+                {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+              </Button>
+              <Button
+                size="icon-sm"
+                variant="secondary"
+                aria-label="Reconnect feed"
+                onClick={reconnect}
+              >
+                <RefreshCw className="size-3.5" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
       {/* Flow Selector Toolbar (Mock Mode) */}
-      {mockMode && (
+      {mockMode && !replaying && (
         <div className="flex flex-wrap items-center justify-between gap-1 border-b border-border bg-surface-2 px-3 py-1.5 text-xs">
           <div className="flex flex-wrap items-center gap-1">
             <span className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-fg-muted">
@@ -206,7 +261,9 @@ export function PlantCameraFeed({ className }: { className?: string }) {
       )}
 
       {/* Main CCTV Screen */}
-      {status === "error" ? (
+      {replaying && replayCase ? (
+        <CarlaReplaySurface item={replayCase} />
+      ) : status === "error" ? (
         <div className="flex flex-col items-center justify-center gap-2 bg-surface-2 py-16 text-center">
           <VideoOff className="size-6 text-danger" aria-hidden />
           <p className="text-sm font-medium text-fg">CCTV Stream Unavailable</p>
@@ -239,24 +296,85 @@ export function PlantCameraFeed({ className }: { className?: string }) {
 
       {/* Footer Info */}
       <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-1.5 text-[10px] text-fg-subtle">
-        <span className="font-mono">
-          {CAMERA_PRESETS[preset].name} · {CAMERA_PRESETS[preset].location} · 1280x720 · Flow{" "}
-          {activeFlow}
-        </span>
-        <span className="flex items-center gap-1">
-          <Video className="size-3" aria-hidden />
-          {mockMode
-            ? "3D WebGL Digital Twin (Three.js · 7 Flows)"
-            : mode === "stream"
-              ? "MJPEG stream"
-              : "Snapshot JPEG"}
-        </span>
+        {replaying && replayCase ? (
+          <>
+            <span className="min-w-0 truncate font-mono">
+              {replayCase.clip_uri ?? `media ${replayCase.media_ids[0]}`}
+            </span>
+            <span className="flex shrink-0 items-center gap-1">
+              <Video className="size-3" aria-hidden />
+              CARLA replay · GCS via /media
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="font-mono">
+              {CAMERA_PRESETS[preset].name} · {CAMERA_PRESETS[preset].location} · 1280x720 · Flow{" "}
+              {activeFlow}
+            </span>
+            <span className="flex items-center gap-1">
+              <Video className="size-3" aria-hidden />
+              {mockMode
+                ? "3D WebGL Digital Twin (Three.js · 7 Flows)"
+                : mode === "stream"
+                  ? "MJPEG stream"
+                  : "Snapshot JPEG"}
+            </span>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function FeedStatusBadge({ status, paused }: { status: string; paused: boolean }) {
+function CarlaReplaySurface({ item }: { item: AssistanceCase }) {
+  return (
+    <div className="flex flex-col">
+      <EvidenceViewer
+        mediaId={item.media_ids[0]}
+        label={item.case_id}
+        boxes={item.detected_objects}
+        fill
+      />
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border bg-surface-2 px-3 py-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs text-fg">
+            <span className="font-mono font-semibold">{item.vin}</span> · {item.situation}
+          </p>
+          <p className="truncate text-[11px] text-fg-subtle">
+            <span className="font-mono">{item.case_id}</span> · {item.location}
+            {item.recommendation && (
+              <span className="ml-2 text-info">
+                Rekomendasi AI: {item.recommendation.option_id} (
+                {Math.round(item.recommendation.confidence * 100)}%)
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <WaitingTimeBadge createdAt={item.opened_at} />
+          <StatusBadge status={item.status} />
+          <Button asChild size="sm">
+            <Link to="/assistance/$case_id" params={{ case_id: item.case_id }}>
+              Buka Case & Putuskan <ArrowRight className="size-3.5" />
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeedStatusBadge({
+  status,
+  paused,
+  replay,
+}: {
+  status: string;
+  paused: boolean;
+  replay?: boolean;
+}) {
+  if (replay) return <Badge variant="info">CARLA REPLAY</Badge>;
   if (paused) return <Badge variant="neutral">PAUSED</Badge>;
   if (status === "streaming" || status === "snapshot_fallback") {
     return (

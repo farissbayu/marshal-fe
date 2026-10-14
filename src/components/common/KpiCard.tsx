@@ -65,7 +65,9 @@ export function KpiCard({
       <CardContent className="p-4">
         <p className="text-[11px] font-medium uppercase tracking-wide text-fg-subtle">{label}</p>
         <div className="mt-1 flex items-baseline gap-1.5">
-          <span className={cn("font-mono text-2xl font-semibold tabular", toneClass[tone ?? "default"])}>
+          <span
+            className={cn("font-mono text-2xl font-semibold tabular", toneClass[tone ?? "default"])}
+          >
             {value}
           </span>
           {unit && <span className="text-xs text-fg-subtle">{unit}</span>}
