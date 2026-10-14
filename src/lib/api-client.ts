@@ -43,8 +43,12 @@ function validate<T>(data: unknown, schema: z.ZodType<T> | undefined, path: stri
 }
 
 function authHeaders(): Record<string, string> {
-  const token = useAuthStore.getState().token;
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  const { token, actor } = useAuthStore.getState();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (actor?.role) headers["X-Actor-Role"] = actor.role;
+  if (actor?.actor_id) headers["X-Actor-Id"] = actor.actor_id;
+  return headers;
 }
 
 async function realRequest<T>(

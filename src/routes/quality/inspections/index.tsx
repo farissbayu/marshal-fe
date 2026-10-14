@@ -111,14 +111,26 @@ function InspectionsPage() {
       <div className="grid gap-3 sm:grid-cols-3">
         <KpiCard
           label="First-pass Yield"
-          value={kpis.data?.first_pass_yield ?? 0}
+          value={
+            kpis.data?.first_pass_yield !== undefined
+              ? kpis.data.first_pass_yield <= 1 && kpis.data.first_pass_yield > 0
+                ? Math.round(kpis.data.first_pass_yield * 100)
+                : Math.round(kpis.data.first_pass_yield)
+              : 0
+          }
           unit="%"
           tone="success"
           loading={kpis.isLoading}
         />
         <KpiCard
           label="Review Share"
-          value={kpis.data?.review_share ?? 0}
+          value={
+            kpis.data?.review_share !== undefined
+              ? kpis.data.review_share <= 1 && kpis.data.review_share > 0
+                ? Math.round(kpis.data.review_share * 100)
+                : Math.round(kpis.data.review_share)
+              : 0
+          }
           unit="%"
           tone="warning"
           loading={kpis.isLoading}

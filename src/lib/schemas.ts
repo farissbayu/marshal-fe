@@ -44,7 +44,7 @@ export type CarState = z.infer<typeof carStateSchema>;
 
 export const healthSchema = z.object({
   status: z.enum(["ok", "degraded", "down"]),
-  uptime_s: z.number().optional(),
+  uptime_s: z.number().nullable().optional(),
 });
 export type Health = z.infer<typeof healthSchema>;
 
@@ -84,10 +84,10 @@ export const kpiSchema = z.object({
   key: z.string(),
   label: z.string(),
   value: z.number(),
-  unit: z.string().optional(),
-  period: z.string().optional(),
-  trend: z.enum(["up", "down", "flat"]).optional(),
-  tone: z.enum(["default", "success", "warning", "danger", "info"]).optional(),
+  unit: z.string().nullable().optional(),
+  period: z.string().nullable().optional(),
+  trend: z.enum(["up", "down", "flat"]).nullable().optional(),
+  tone: z.enum(["default", "success", "warning", "danger", "info"]).nullable().optional(),
 });
 export type Kpi = z.infer<typeof kpiSchema>;
 
@@ -100,8 +100,8 @@ export type KpiResponse = z.infer<typeof kpiResponseSchema>;
 
 export const carSummarySchema = z.object({
   vin: z.string(),
-  model: z.string().optional(),
-  color: z.string().optional(),
+  model: z.string().nullable().optional(),
+  color: z.string().nullable().optional(),
   state: carStateSchema,
   location: z.string(),
   mission: z.string().nullable().optional(),
@@ -114,7 +114,7 @@ export type CarSummary = z.infer<typeof carSummarySchema>;
 
 export const buildSheetSchema = z.object({
   model: z.string(),
-  trim: z.string().optional(),
+  trim: z.string().nullable().optional(),
   color: z.string(),
   options: z.array(z.string()).default([]),
 });
@@ -130,15 +130,15 @@ export const truckSchema = z.object({
   truck_id: z.string(),
   scheduled_eta: z.string().nullable().optional(),
   actual_eta: z.string().nullable().optional(),
-  delay_minutes: z.number().optional(),
-  destination: z.string().optional(),
+  delay_minutes: z.number().nullable().optional(),
+  destination: z.string().nullable().optional(),
   assigned_vins: z.array(z.string()).default([]),
 });
 export type Truck = z.infer<typeof truckSchema>;
 
 export const zoneSchema = z.object({
   zone: z.string(),
-  name: z.string().optional(),
+  name: z.string().nullable().optional(),
   closed: z.boolean(),
   reason: z.string().nullable().optional(),
 });
@@ -146,10 +146,10 @@ export type Zone = z.infer<typeof zoneSchema>;
 
 export const reworkBaySchema = z.object({
   bay_id: z.string(),
-  name: z.string().optional(),
+  name: z.string().nullable().optional(),
   capacity: z.number(),
   occupied: z.number(),
-  status: z.enum(["open", "near_full", "full"]).optional(),
+  status: z.enum(["open", "near_full", "full"]).nullable().optional(),
   active_vins: z.array(z.string()).default([]),
 });
 export type ReworkBay = z.infer<typeof reworkBaySchema>;
@@ -174,8 +174,8 @@ export const mapPointSchema = z.object({
   id: z.string(),
   name: z.string(),
   kind: z.enum(["gate", "zone", "bay", "route", "point"]),
-  x: z.number().optional(),
-  y: z.number().optional(),
+  x: z.number().nullable().optional(),
+  y: z.number().nullable().optional(),
 });
 export type MapPoint = z.infer<typeof mapPointSchema>;
 
@@ -198,7 +198,13 @@ export const proposalSchema = z.object({
   payload: z.record(z.string(), z.unknown()).default({}),
   status: z.enum(["pending", "approved", "rejected", "escalated"]),
   allowed_actions: z.array(z.string()).default([]),
-  effects: z.object({ approve: z.string().optional(), reject: z.string().optional() }).optional(),
+  effects: z
+    .object({
+      approve: z.string().nullable().optional(),
+      reject: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
   created_at: z.string(),
   decided_at: z.string().nullable().optional(),
   decided_by: z.string().nullable().optional(),
@@ -214,15 +220,15 @@ export const assistanceOptionSchema = z.object({
   id: z.string(),
   label: z.string(),
   risk: z.enum(["low", "medium", "high"]),
-  reason: z.string().optional(),
-  rank: z.number().optional(),
+  reason: z.string().nullable().optional(),
+  rank: z.number().nullable().optional(),
 });
 export type AssistanceOption = z.infer<typeof assistanceOptionSchema>;
 
 export const detectedObjectSchema = z.object({
   label: z.string(),
   box: z.array(z.number()),
-  confidence: z.number().optional(),
+  confidence: z.number().nullable().optional(),
 });
 export type DetectedObject = z.infer<typeof detectedObjectSchema>;
 
@@ -237,7 +243,11 @@ export const assistanceCaseSchema = z.object({
   moving_people_or_equipment: z.boolean().default(false),
   risk_note: z.string().nullable().optional(),
   recommendation: z
-    .object({ option_id: z.string(), confidence: z.number(), note: z.string().optional() })
+    .object({
+      option_id: z.string(),
+      confidence: z.number(),
+      note: z.string().nullable().optional(),
+    })
     .nullable()
     .optional(),
   options: z.array(assistanceOptionSchema).default([]),
@@ -254,7 +264,7 @@ export const assistanceKpiSchema = z.object({
   open: z.number(),
   resolved: z.number(),
   avg_latency_minutes: z.number(),
-  period: z.string().optional(),
+  period: z.string().nullable().optional(),
 });
 export type AssistanceKpis = z.infer<typeof assistanceKpiSchema>;
 
@@ -278,7 +288,7 @@ export type InspectionResult = z.infer<typeof inspectionResultSchema>;
 export const visualFindingSchema = z.object({
   zone: z.string(),
   defect_type: z.string(),
-  size: z.string().optional(),
+  size: z.string().nullable().optional(),
   confidence: z.number(),
   observation: z.string(),
   media_id: z.string().nullable().optional(),
@@ -313,7 +323,7 @@ export const functionalStepSchema = z.object({
   telemetry: z.string().nullable().optional(),
   camera_result: z.string().nullable().optional(),
   confidence: z.number(),
-  observation: z.string().optional(),
+  observation: z.string().nullable().optional(),
   disagree: z.boolean().default(false),
   media_id: z.string().nullable().optional(),
 });
@@ -428,12 +438,12 @@ export type FailureReport = z.infer<typeof failureReportSchema>;
 export const scenarioDetailSchema = scenarioSchema.extend({
   spec: z.record(z.string(), z.unknown()).default({}),
   validator_notes: z.array(validatorNoteSchema).default([]),
-  dry_run_metrics: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+  dry_run_metrics: z.record(z.string(), z.union([z.string(), z.number()])).nullable().optional(),
   review: z
     .object({
       decision: z.string(),
       actor_id: z.string(),
-      note: z.string().optional(),
+      note: z.string().nullable().optional(),
       at: z.string(),
     })
     .nullable()
@@ -443,8 +453,8 @@ export const scenarioDetailSchema = scenarioSchema.extend({
       runs: z.number(),
       verdict: z.enum(["ROBUST", "FRAGILE"]),
       smallest_failing_variant: z.string().nullable().optional(),
-      criteria: z.record(z.string(), z.string()).optional(),
-      metrics: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
+      criteria: z.record(z.string(), z.string()).nullable().optional(),
+      metrics: z.record(z.string(), z.union([z.string(), z.number()])).nullable().optional(),
       report_id: z.string().nullable().optional(),
       media_ids: z.array(z.string()).default([]),
       variants: z.array(variantRunSchema).default([]),
@@ -457,13 +467,13 @@ export type ScenarioDetail = z.infer<typeof scenarioDetailSchema>;
 
 export const releaseEvalTestSchema = z.object({
   test_id: z.string(),
-  scenario_id: z.string().optional(),
+  scenario_id: z.string().nullable().optional(),
   metric: z.string(),
   criteria: z.string(),
   result: z.string(),
   passed: z.boolean(),
   report_id: z.string().nullable().optional(),
-  media_ids: z.array(z.string()).optional(),
+  media_ids: z.array(z.string()).nullable().optional(),
 });
 export type ReleaseEvalTest = z.infer<typeof releaseEvalTestSchema>;
 
@@ -488,9 +498,9 @@ export const jobSchema = z.object({
   job_id: z.string(),
   kind: z.string(),
   status: jobStatusSchema,
-  progress: z.number().min(0).max(100).optional(),
-  message: z.string().optional(),
-  error: z.string().optional(),
+  progress: z.number().min(0).max(100).nullable().optional(),
+  message: z.string().nullable().optional(),
+  error: z.string().nullable().optional(),
   result: z.record(z.string(), z.unknown()).nullable().optional(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -554,6 +564,6 @@ export const inspectionKpiSchema = z.object({
   first_pass_yield: z.number(),
   review_share: z.number(),
   failure_count: z.number(),
-  period: z.string().optional(),
+  period: z.string().nullable().optional(),
 });
 export type InspectionKpis = z.infer<typeof inspectionKpiSchema>;

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export interface EvidenceBox {
   label?: string;
   box: number[];
-  confidence?: number;
+  confidence?: number | null;
 }
 
 /**
@@ -167,7 +167,7 @@ function renderBoxes(boxes?: EvidenceBox[]) {
         {b.label && (
           <span className="absolute -top-5 left-0 rounded-xs bg-danger px-1 font-mono text-[10px] font-semibold text-white shadow-xs">
             {b.label}
-            {b.confidence !== undefined ? ` (${Math.round(b.confidence * 100)}%)` : ""}
+            {b.confidence != null ? ` (${Math.round(b.confidence * 100)}%)` : ""}
           </span>
         )}
       </div>

@@ -13,18 +13,16 @@ import { switchMockActor } from "@/lib/api";
 import { IS_DEVELOPMENT } from "@/lib/env";
 import { roleLabel } from "@/lib/role";
 import type { Role } from "@/lib/schemas";
-import { useAppStore } from "@/lib/stores/app";
 import { useAuthStore } from "@/lib/stores/auth";
 
 export function ActorMenu() {
   const actor = useAuthStore((s) => s.actor);
   const setActor = useAuthStore((s) => s.setActor);
-  const mockMode = useAppStore((s) => s.mockMode);
   const queryClient = useQueryClient();
 
   if (!actor) return null;
 
-  const canSwitch = IS_DEVELOPMENT && mockMode;
+  const canSwitch = IS_DEVELOPMENT;
 
   const handleSwitch = async (role: Role) => {
     try {

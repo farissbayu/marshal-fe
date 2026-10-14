@@ -14,9 +14,9 @@ const toneClass: Record<string, string> = {
 export interface KpiCardProps {
   label: string;
   value: number | string;
-  unit?: string;
-  trend?: "up" | "down" | "flat";
-  tone?: "default" | "success" | "warning" | "danger" | "info";
+  unit?: string | null;
+  trend?: "up" | "down" | "flat" | null;
+  tone?: "default" | "success" | "warning" | "danger" | "info" | null;
   hint?: string;
   loading?: boolean;
   onClick?: () => void;
@@ -65,7 +65,7 @@ export function KpiCard({
       <CardContent className="p-4">
         <p className="text-[11px] font-medium uppercase tracking-wide text-fg-subtle">{label}</p>
         <div className="mt-1 flex items-baseline gap-1.5">
-          <span className={cn("font-mono text-2xl font-semibold tabular", toneClass[tone])}>
+          <span className={cn("font-mono text-2xl font-semibold tabular", toneClass[tone ?? "default"])}>
             {value}
           </span>
           {unit && <span className="text-xs text-fg-subtle">{unit}</span>}
