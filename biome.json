@@ -9,7 +9,8 @@
       "!**/.tanstack",
       "!**/.nitro",
       "!**/.vinxi",
-      "!**/routeTree.gen.ts"
+      "!**/routeTree.gen.ts",
+      "!**/.agents"
     ]
   },
   "formatter": {
