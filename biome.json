@@ -10,7 +10,8 @@
       "!**/.nitro",
       "!**/.vinxi",
       "!**/routeTree.gen.ts",
-      "!**/.agents"
+      "!**/.agents",
+      "!**/Main.dc.html"
     ]
   },
   "formatter": {
