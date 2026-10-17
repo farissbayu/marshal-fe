@@ -38,6 +38,20 @@ Server (TanStack Start server functions)
 - The browser calls them only through `createMarshalAi()` (`client.ts`), which falls back to the
   offline answer when an RPC throws.
 
+## Marshal orchestrator and flows
+
+- `src/lib/marshal/orchestrator.ts` (`createOrchestrator`) subscribes to a `DrivingSystem`,
+  mirrors its events (`sim:*`) and every command (`marshal:command`) on the bus, keeps the
+  dashboard state (`state.ts`: cars, decisions, assist cases, 8x10 yard, KPIs) and runs the
+  flows in `flows/`: gate (M3.4), lamp + rework recheck (M5.6), route at `report_point`
+  (M9.1), parking loop (M7), assist cases with "Pause when needed" (M6/M8.8) and yard re-plan
+  validation and dispatch (M9.3). `hazards.ts` stages the Scene A forklift hazard (M9.4).
+- It reaches Gemini only through the `MarshalAi` interface. Yard row A columns 1-8 map to the
+  sim points `yard.Y1`..`yard.Y8`.
+- `testing/scriptedSystem.ts` is a deterministic, timer-free `DrivingSystem` (plus gate,
+  evidence and parking ports and offline truth hints) used by tests and the demo until the
+  three.js engine lands; `testing/offlineAi.ts` is a `MarshalAi` backed by the offline logic.
+
 ## Data flow
 
 1. Operator picks 1–6 cars → `BatchRunner.start()` builds a deterministic `Manifest`
