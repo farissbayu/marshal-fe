@@ -2,6 +2,7 @@
 // obstacles around the slot, ask Gemini (over the A* candidates) for the next step, then execute
 // it. 'parked' marks the slot; 'ask_person' (or running out of steps) raises an assist case.
 
+import { MAX_OBSTACLES } from '../schemas'
 import { patchCar, setSlot, slotToPoint } from '../state'
 import type { ParkingDecision, ParkingSlot } from '../types'
 import type { FlowContext } from './context'
@@ -43,7 +44,7 @@ export async function runParking(ctx: FlowContext, vin: string): Promise<void> {
 
   for (let i = 0; i < MAX_PARKING_STEPS; i++) {
     const pose = ctx.ds.getPositionXY(vin)
-    const obstacles = ctx.parking.getObstacles(vin, slot)
+    const obstacles = nearest(ctx.parking.getObstacles(vin, slot), slot, MAX_OBSTACLES)
     const step = await ctx.ai.planParkingStep({ vin, pose, obstacles, slot })
     const confidence = step.confidence.toFixed(2)
     const text = `${vin} parking ${label}: ${DECISION_TEXT[step.decision]} (${confidence})`
@@ -73,6 +74,16 @@ export async function runParking(ctx: FlowContext, vin: string): Promise<void> {
   askPerson(ctx, vin, label, attempt, `not parked after ${MAX_PARKING_STEPS} steps`)
 }
 
+function nearest<T extends { x: number; y: number }>(
+  items: readonly T[],
+  to: { x: number; y: number },
+  limit: number,
+): T[] {
+  if (items.length <= limit) return [...items]
+  const distance = (item: T) => (item.x - to.x) ** 2 + (item.y - to.y) ** 2
+  return [...items].sort((a, b) => distance(a) - distance(b)).slice(0, limit)
+}
+
 function askPerson(
   ctx: FlowContext,
   vin: string,
@@ -81,10 +92,10 @@ function askPerson(
   why: string,
 ): void {
   if (attempt >= MAX_PARKING_ATTEMPTS) {
-    ctx.update((state) => patchCar(state, vin, { stage: 'waiting' }))
-    ctx.decide(vin, 'YARD', `Parking ${label} abandoned after ${attempt} attempts (${why})`, {
-      exception: true,
-    })
+    const abandoned = `Parking ${label} abandoned after ${attempt} attempts (${why})`
+    const held = `${abandoned}; the yard crew takes over`
+    ctx.update((state) => patchCar(state, vin, { stage: 'waiting', held }))
+    ctx.decide(vin, 'YARD', held, { exception: true })
     return
   }
   const case_id = `AC-${vin}-P${attempt}`

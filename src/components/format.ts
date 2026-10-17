@@ -39,6 +39,7 @@ const STAGE_TEXT: Record<CarStage, string> = {
  * @returns e.g. 'Driving to A3' or 'Rework bay'.
  */
 export function whereText(car: CarState): string {
+  if (car.held !== undefined) return 'Held for the yard crew'
   if (car.slot && car.stage === 'to_slot') return `Driving to ${car.slot}`
   if (car.slot && car.stage === 'parking') return `Parking in ${car.slot}`
   if (car.slot && car.stage === 'parked') return `Parked in ${car.slot}`

@@ -51,10 +51,20 @@ export type CarState = {
   decisions: Decision[]
   /** Stage to return to when an assist case is decided. */
   resumeStage?: CarStage
-  /** Why the car went to rework; gate failures stay in the bay. */
-  reworkReason?: 'gate' | 'lamp'
+  /**
+   * Why the car went to rework. Gate failures stay in the bay, and so do lamp checks that
+   * could not be verified ('inspection': a person checks the lamps).
+   */
+  reworkReason?: 'gate' | 'lamp' | 'inspection'
   /** Sim time the car was parked (for the "just parked" cell state). */
   parkedAt?: number
+  /** Already in the yard when the shift started: not counted as off the line or in progress. */
+  preParked?: boolean
+  /**
+   * Why the car is held with nothing left to automate (full yard, parking abandoned). A held
+   * car counts as finished for shift progress; the yard crew takes over.
+   */
+  held?: string
 }
 
 /** A "Waiting on you" case. */
@@ -206,8 +216,8 @@ export function pointToSlot(point: string): string | undefined {
 const DONE_STAGES: ReadonlySet<CarStage> = new Set(['parked', 'shipped'])
 
 function carDone(car: CarState): boolean {
-  if (DONE_STAGES.has(car.stage)) return true
-  return car.stage === 'rework' && car.reworkReason === 'gate'
+  if (DONE_STAGES.has(car.stage) || car.held !== undefined) return true
+  return car.stage === 'rework' && car.reworkReason !== 'lamp'
 }
 
 /**
@@ -217,16 +227,17 @@ function carDone(car: CarState): boolean {
  */
 export function derive(state: MarshalState): MarshalState {
   const cars = state.order.map((vin) => state.cars[vin]).filter(Boolean)
+  const produced = cars.filter((car) => !car.preParked)
   const cases = Object.values(state.cases)
   const kpis: Kpis = {
-    offLine: cars.length,
+    offLine: produced.length,
     decisions: state.feed.length,
     neededYou: cases.length,
     inYard: cars.filter((car) => car.stage === 'parked').length,
     shipped: cars.filter((car) => car.stage === 'shipped').length,
     rework: cars.filter((car) => car.reworkReason !== undefined).length,
   }
-  const progress = cars.length === 0 ? 0 : cars.filter(carDone).length / cars.length
+  const progress = produced.length === 0 ? 0 : produced.filter(carDone).length / produced.length
   const open = cases.some((item) => item.status === 'open')
   return { ...state, kpis, progress, paused: state.pauseWhenNeeded && open }
 }
@@ -337,19 +348,41 @@ export function setSlot(state: MarshalState, slot: string, vin: string | null): 
 }
 
 /**
- * First free row-A slot (the ones the simulator can drive to) that is neither reserved nor
- * assigned to another car.
+ * Slots assigned to a car that is not (yet) parked in them: cars driving or parking into a
+ * slot, and yard moves in progress. They must not be offered to anyone else.
+ * @param state - Current state.
+ * @returns Slot ids, sorted.
+ */
+export function assignedSlots(state: MarshalState): string[] {
+  const slots = Object.values(state.cars).flatMap((car) =>
+    car.slot && state.layout[car.slot] !== car.vin ? [car.slot] : [],
+  )
+  return [...new Set(slots)].sort()
+}
+
+/**
+ * Free row-A slot (the ones the simulator can drive to) that is neither reserved nor assigned
+ * to another car. Row-A slots sit nose to tail with almost no fore/aft slack, so a slot whose
+ * neighbours are both empty is preferred, then one with a single occupied neighbour, then any.
  * @param state - Current state.
  * @returns Slot id, or undefined when the sim yard is full.
  */
 export function firstFreeSimSlot(state: MarshalState): string | undefined {
   const taken = new Set(Object.values(state.cars).flatMap((car) => (car.slot ? [car.slot] : [])))
   const reserved = new Set(state.reserved)
+  const occupied = (col: number) => {
+    const slot = `A${col}`
+    return (state.layout[slot] ?? null) !== null || taken.has(slot)
+  }
+  let best: { slot: string; neighbours: number } | undefined
   for (let col = 1; col <= 8; col++) {
     const slot = `A${col}`
-    if (state.layout[slot] === null && !taken.has(slot) && !reserved.has(slot)) return slot
+    if (state.layout[slot] !== null || taken.has(slot) || reserved.has(slot)) continue
+    const neighbours = Number(occupied(col - 1)) + Number(occupied(col + 1))
+    if (!best || neighbours < best.neighbours) best = { slot, neighbours }
+    if (neighbours === 0) break
   }
-  return undefined
+  return best?.slot
 }
 
 /**

@@ -148,4 +148,32 @@ describe('Scene D: late truck yard re-plan', () => {
     expect(rejectedP3).toHaveLength(3)
     expect(rejectedP3.every((entry) => entry.tag === 'YARD' && entry.exception)).toBe(true)
   })
+
+  it('never moves a car into a slot another car is driving to', async () => {
+    const seen: string[][] = []
+    const { ds, orch } = setup({
+      ai: {
+        replanYardSlots: async (input) => {
+          seen.push(input.constraints.reservedSlots ?? [])
+          return { moves: [{ vin: 'P1', from: 'A1', to: 'A3' }], reason: 'test', degraded: false }
+        },
+      },
+    })
+    orch.start([
+      { vin: 'P1', colour: 'blue', parkedAt: 'A1' },
+      { vin: 'P5', colour: 'blue' },
+    ])
+    const assigned = await runUntil(ds, orch.getState, (s) => s.cars.P5.slot !== undefined)
+    expect(assigned).toBe(true)
+    expect(orch.getState().cars.P5.slot).toBe('A3')
+    expect(orch.getState().layout.A3).toBeNull()
+
+    const outcome = await orch.applyYardReplan({ reason: 'test' })
+    expect(seen).toEqual([['A3']])
+    expect(outcome.ordered).toEqual([])
+    expect(outcome.rejected.map((item) => item.reason)).toEqual(['target A3 is reserved'])
+    const parked = await runUntil(ds, orch.getState, (s) => s.cars.P5.stage === 'parked')
+    expect(parked).toBe(true)
+    expect(orch.getState().layout).toMatchObject({ A1: 'P1', A3: 'P5' })
+  })
 })

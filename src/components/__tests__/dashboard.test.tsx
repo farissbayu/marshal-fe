@@ -5,7 +5,7 @@ import type { AssistCase, CarState, FeedEntry, Kpis, Truck } from '#/lib/marshal
 import { createOfflineMarshalAi } from '#/lib/marshal/testing/offlineAi'
 import { ScriptedDrivingSystem } from '#/lib/marshal/testing/scriptedSystem'
 import type { AssistChooseCmd } from '#/lib/marshal/types'
-import { getShiftBackend, useShiftStore } from '#/stores/shift'
+import { DEFAULT_SCENARIO, defaultShiftAi, getShiftBackend, useShiftStore } from '#/stores/shift'
 import { CarDetail } from '../CarDetail'
 import { Dashboard } from '../Dashboard'
 import { DecisionFeed } from '../DecisionFeed'
@@ -384,5 +384,52 @@ describe('Dashboard with the shift store', () => {
     ])
     expect(screen.getByText(/nothing needs you/i)).toBeInTheDocument()
     expect(useShiftStore.getState().shift.paused).toBe(false)
+  })
+
+  it('plays the default shift to the end, including Scene A and Scene D', async () => {
+    useShiftStore.getState().configure({ ai: createOfflineMarshalAi(), scenario: DEFAULT_SCENARIO })
+    useShiftStore.getState().setPauseWhenNeeded(false)
+    const store = () => useShiftStore.getState()
+    expect(store().shift.kpis.offLine).toBe(5)
+    expect(store().shift.progress).toBe(0)
+    for (let t = 0; t < 2400 && store().shift.progress < 1; t += 2) {
+      await act(async () => {
+        store().advance(2)
+        await flush()
+      })
+    }
+    const { shift } = store()
+    expect(shift.progress).toBe(1)
+    const texts = shift.feed.map((entry) => entry.text)
+    expect(texts.some((text) => text.startsWith('Route via lane_c'))).toBe(true)
+    expect(texts.some((text) => text.startsWith('Re-plan A7 -> '))).toBe(true)
+    expect(shift.trucks.find((truck) => truck.id === 'T-1')?.state).toBe('waiting')
+    expect(shift.layout.A7).toBeNull()
+    expect(shift.hazard).toBeNull()
+    store().setPauseWhenNeeded(true)
+  })
+
+  it('keeps image checks offline while the engine only has placeholder frames', async () => {
+    const ai = defaultShiftAi({ placeholderFrames: true })
+    const frames = { front: 'x', rear: 'x', left: 'x', right: 'x' }
+    const hints = { front: 'colour=red' }
+    const gate = await ai.evaluateGatePhotos({ vin: 'V', expectedColour: 'red', frames, hints })
+    expect(gate).toMatchObject({ pass: true, degraded: true })
+    const lamp = await ai.evaluateLampEvidence({
+      vin: 'V',
+      step: 'headlights',
+      telemetry: { headlights: 'ON' },
+      frames: [],
+      hint: 'headlights=off',
+    })
+    expect(lamp).toMatchObject({ pass: false, observed: 'OFF', degraded: true })
+    const assist = await ai.analyzeAssistClip({
+      case_id: 'c',
+      reason: 'Box in the lane',
+      options: ['wait_for_removal', 'pass_left_3kmh'],
+      frames: [],
+    })
+    expect(assist).toMatchObject({ recommendation: 'pass_left_3kmh', degraded: true })
+    expect(new ScriptedDrivingSystem().placeholderFrames).toBe(true)
   })
 })

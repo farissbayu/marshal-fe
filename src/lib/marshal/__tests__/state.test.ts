@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addCar,
   addDecision,
+  assignedSlots,
   colourToRgb,
   createInitialState,
   firstFreeSimSlot,
@@ -66,10 +67,47 @@ describe('state', () => {
     state = { ...state, reserved: ['A2'] }
     expect(firstFreeSimSlot(state)).toBe('A3')
     state = addCar(state, { ...car, vin: 'VIN-2', stage: 'to_slot', slot: 'A3' })
-    expect(firstFreeSimSlot(state)).toBe('A4')
+    // A4 would sit right behind A3: a slot with both neighbours free is preferred.
+    expect(firstFreeSimSlot(state)).toBe('A5')
     const cells = yardCells(state)
     expect(cells.A1).toBe('parked')
     expect(cells.A3).toBe('res')
     expect(cells.A4).toBe('empty')
+  })
+
+  it('falls back to slots next to parked cars when the row fills up', () => {
+    let state = createInitialState()
+    for (const slot of ['A1', 'A3', 'A5', 'A7']) state = setSlot(state, slot, `V-${slot}`)
+    expect(firstFreeSimSlot(state)).toBe('A8')
+    state = setSlot(state, 'A8', 'V-A8')
+    expect(firstFreeSimSlot(state)).toBe('A2')
+  })
+
+  it('leaves pre-parked cars out of off-the-line and progress', () => {
+    let state = addCar(createInitialState(), {
+      ...car,
+      vin: 'P090',
+      stage: 'parked',
+      slot: 'A8',
+      preParked: true,
+    })
+    state = addCar(state, car)
+    expect(state.kpis).toMatchObject({ offLine: 1, inYard: 1 })
+    expect(state.progress).toBe(0)
+  })
+
+  it('counts held cars and unverified inspections as finished', () => {
+    let state = addCar(createInitialState(), { ...car, stage: 'report', held: 'yard full' })
+    state = addCar(state, { ...car, vin: 'VIN-2', stage: 'rework', reworkReason: 'inspection' })
+    state = addCar(state, { ...car, vin: 'VIN-3', stage: 'rework', reworkReason: 'lamp' })
+    expect(state.progress).toBeCloseTo(2 / 3)
+  })
+
+  it('lists slots assigned to cars that are not parked in them yet', () => {
+    let state = setSlot(createInitialState(), 'A1', 'VIN-0')
+    state = addCar(state, { ...car, vin: 'VIN-0', stage: 'parked', slot: 'A1' })
+    state = addCar(state, { ...car, vin: 'VIN-2', stage: 'parking', slot: 'A4' })
+    state = addCar(state, { ...car, vin: 'VIN-3', stage: 'to_slot', slot: 'A2' })
+    expect(assignedSlots(state)).toEqual(['A2', 'A4'])
   })
 })

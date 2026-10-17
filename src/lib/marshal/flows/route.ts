@@ -35,7 +35,9 @@ export async function handleReportArrival(ctx: FlowContext, vin: string): Promis
 
   const slot = firstFreeSimSlot(ctx.state())
   if (!slot) {
-    ctx.decide(vin, 'YARD', 'No free yard slot; holding at the report point', { exception: true })
+    const held = 'No free yard slot; holding at the report point for the yard crew'
+    ctx.update((state) => patchCar(state, vin, { held }))
+    ctx.decide(vin, 'YARD', held, { exception: true })
     return
   }
   ctx.decide(vin, 'YARD', `Assigned slot ${slot} (${slotToPoint(slot)})`)

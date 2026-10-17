@@ -81,6 +81,60 @@ describe('orchestrator happy path', () => {
   })
 })
 
+describe('fail-closed offline checks and shift completion', () => {
+  it('holds a car for inspection when the offline gate has no evidence', async () => {
+    const { ds, orch, feedText } = setup({ hints: false })
+    orch.start([{ vin: 'VIN-X', colour: 'blue' }])
+    const done = await runUntil(
+      ds,
+      orch.getState,
+      (s) => s.cars['VIN-X'].location === 'rework.electrical',
+    )
+    expect(done).toBe(true)
+    expect(orch.getState().progress).toBe(1)
+    const car = orch.getState().cars['VIN-X']
+    expect(car).toMatchObject({ stage: 'rework', reworkReason: 'inspection' })
+    const feed = feedText('VIN-X')
+    const fail = 'GEMINI Gate FAIL: not_verified_offline; saw unknown, built blue (0.00)'
+    expect(feed).toContain(fail)
+    expect(feed.at(-1)).toMatch(/AI check unavailable/)
+  })
+
+  it('holds a car for inspection when the offline lamp check has no evidence', async () => {
+    const { ds, orch, missionsOf } = setup({
+      hints: false,
+      ai: {
+        evaluateGatePhotos: async () => ({
+          pass: true,
+          colour: 'blue',
+          confidence: 0.9,
+          faults: [],
+          degraded: false,
+        }),
+      },
+    })
+    orch.start([{ vin: 'VIN-L', colour: 'blue' }])
+    const done = await runUntil(ds, orch.getState, (s) => s.progress === 1)
+    expect(done).toBe(true)
+    expect(orch.getState().cars['VIN-L']).toMatchObject({ reworkReason: 'inspection' })
+    // Not repaired and re-run in a loop: the car stays in the bay.
+    const tracks = missionsOf('VIN-L').filter((cmd) => cmd.waypoints.includes('test_track'))
+    expect(tracks).toHaveLength(1)
+  })
+
+  it('completes the shift when a car is held because the yard is full', async () => {
+    const { ds, orch, feedText } = setup()
+    orch.start([{ vin: 'VIN-F', colour: 'blue' }], {
+      reservedSlots: ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8'],
+    })
+    const done = await runUntil(ds, orch.getState, (s) => s.progress === 1)
+    expect(done).toBe(true)
+    expect(orch.getState().cars['VIN-F']).toMatchObject({ stage: 'report' })
+    expect(orch.getState().cars['VIN-F'].held).toMatch(/No free yard slot/)
+    expect(feedText('VIN-F').at(-1)).toMatch(/^YARD No free yard slot/)
+  })
+})
+
 describe('Scene A: route choice and gate failure', () => {
   it('routes via lane_c around a staged hazard; wrong colour goes to rework', async () => {
     const { ds, orch, missionsOf, feedText } = setup()

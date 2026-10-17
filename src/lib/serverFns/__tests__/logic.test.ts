@@ -24,6 +24,8 @@ import {
   offlineRoute,
   offlineYard,
   parseHint,
+  UNVERIFIED,
+  UNVERIFIED_FAULT,
   validYardMoves,
 } from '../logic'
 
@@ -61,6 +63,16 @@ describe('gate', () => {
     expect(damaged.faults).toEqual(['damage:left:dent'])
   })
 
+  it('fails closed offline when no view has a hint', () => {
+    expect(offlineGate(gate())).toEqual({
+      pass: false,
+      colour: 'unknown',
+      confidence: 0,
+      faults: [UNVERIFIED_FAULT],
+      degraded: true,
+    })
+  })
+
   it('never lets Gemini pass a colour mismatch', () => {
     const out = enforceGate(gate(), { pass: true, colour: 'red', confidence: 2, faults: [] })
     expect(out).toMatchObject({ pass: false, confidence: 1, degraded: false })
@@ -93,9 +105,18 @@ describe('lamp', () => {
     })
   })
 
-  it('passes when the observation matches telemetry or there is no hint', () => {
+  it('passes when the observation matches telemetry', () => {
     expect(offlineLamp(lamp({ headlights: 'ON' }, 'headlights=on')).pass).toBe(true)
-    expect(offlineLamp(lamp({ headlights: true })).pass).toBe(true)
+  })
+
+  it('fails closed as UNVERIFIED when there is no hint', () => {
+    expect(offlineLamp(lamp({ headlights: true }))).toEqual({
+      expected: 'ON',
+      observed: UNVERIFIED,
+      pass: false,
+      degraded: true,
+    })
+    expect(offlineLamp(lamp({ headlights: 'ON' }, 'headlights=maybe')).observed).toBe(UNVERIFIED)
   })
 
   it('takes expected from telemetry, not from Gemini', () => {

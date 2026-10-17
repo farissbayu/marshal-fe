@@ -51,6 +51,14 @@ Server (TanStack Start server functions)
 - `testing/scriptedSystem.ts` is a deterministic, timer-free `DrivingSystem` (plus gate,
   evidence and parking ports and offline truth hints) used by tests and the demo until the
   three.js engine lands; `testing/offlineAi.ts` is a `MarshalAi` backed by the offline logic.
+  Its frames are placeholders, so the `/shift` store keeps the gate, lamp and assist image
+  checks offline for it (`placeholderFrames`); route, parking and yard still go to Gemini.
+- Offline answers fail closed: without truth hints the gate fails with `not_verified_offline`
+  and the lamp step reads `UNVERIFIED`, and the car is held in the rework bay for a person
+  instead of passing. Cars held with nothing left to automate (full yard, parking abandoned)
+  count as finished so the shift completes; pre-parked cars are not counted as produced.
+- Slot assignment prefers row-A slots with both neighbours free (the slots sit nose to tail),
+  and yard re-plans treat slots a car is driving to as reserved.
 
 ## Data flow
 

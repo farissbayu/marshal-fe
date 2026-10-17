@@ -130,6 +130,8 @@ function point(name: string): Pose {
 export class ScriptedDrivingSystem
   implements DrivingSystem, GateCapturePort, EvidencePort, ParkingPort
 {
+  /** Frames are text placeholders, not JPEGs: image checks must not be sent to Gemini. */
+  readonly placeholderFrames = true
   readonly passes: Record<string, number> = {}
   readonly assistOutcomes: Record<string, unknown> = {}
   readonly parkingLog: Record<string, unknown[]> = {}

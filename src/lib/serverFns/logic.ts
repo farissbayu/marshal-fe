@@ -53,6 +53,12 @@ export function parseHint(hint?: string): Record<string, string> {
   return facts
 }
 
+/** Gate fault raised offline when no evidence could be checked (the car is held). */
+export const UNVERIFIED_FAULT = 'not_verified_offline'
+
+/** Lamp `observed` value offline when the camera could not be checked. */
+export const UNVERIFIED = 'UNVERIFIED'
+
 /**
  * Clamps a number into 0..1 (NaN becomes 0).
  * @param value - Raw confidence.
@@ -79,7 +85,9 @@ export function colourMatches(seen: string, expected: string): boolean {
 
 /**
  * Deterministic gate check from per-view hints (`colour=`, `damage=`).
- * Fails on a colour mismatch with the build sheet or any reported damage.
+ * Fails on a colour mismatch with the build sheet or any reported damage. Without any hint
+ * nothing was verified, so the car fails with the {@link UNVERIFIED_FAULT} fault (fail closed)
+ * and is held for a person to inspect.
  * @param input - Gate input.
  * @returns Gate result with `degraded: true`.
  */
@@ -97,11 +105,20 @@ export function offlineGate(input: GateInput): GateResult {
     const damage = facts.damage
     if (damage !== undefined && !NEGATIVE.has(damage)) faults.push(`damage:${view}:${damage}`)
   }
+  if (!hinted) {
+    return {
+      pass: false,
+      colour: 'unknown',
+      confidence: 0,
+      faults: [UNVERIFIED_FAULT],
+      degraded: true,
+    }
+  }
   if (!colourMatches(colour, expected)) faults.unshift('colour_mismatch')
   return {
     pass: faults.length === 0,
     colour,
-    confidence: hinted ? 0.9 : 0.5,
+    confidence: 0.9,
     faults,
     degraded: true,
   }
@@ -173,8 +190,8 @@ export function normaliseLamp(text: string): 'ON' | 'OFF' | undefined {
 
 /**
  * Deterministic lamp check: expected from telemetry, observed from the hint
- * (`headlights=off`), defaulting to the expected state when there is no hint.
- * Telemetry ON + camera OFF fails.
+ * (`headlights=off`). Telemetry ON + camera OFF fails. Without a readable hint the camera was
+ * not checked, so `observed` is {@link UNVERIFIED} and the step fails (fail closed).
  * @param input - Lamp input.
  * @returns Lamp result with `degraded: true`.
  */
@@ -182,7 +199,7 @@ export function offlineLamp(input: LampInput): LampResult {
   const expected = expectedLamp(input.step, input.telemetry)
   const facts = parseHint(input.hint)
   const raw = facts[input.step] ?? facts.lamps ?? facts.lights
-  const observed = (raw === undefined ? undefined : normaliseLamp(raw)) ?? expected
+  const observed = (raw === undefined ? undefined : normaliseLamp(raw)) ?? UNVERIFIED
   return { expected, observed, pass: expected === observed, degraded: true }
 }
 

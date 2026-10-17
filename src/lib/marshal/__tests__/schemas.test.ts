@@ -4,6 +4,12 @@ import {
   assistInputSchema,
   gateInputSchema,
   lampInputSchema,
+  MAX_FRAME_CHARS,
+  MAX_FRAMES,
+  MAX_OBSTACLES,
+  MAX_SLOTS,
+  MAX_TELEMETRY_KEYS,
+  MAX_TEXT_CHARS,
   parkingInputSchema,
   routeInputSchema,
   yardInputSchema,
@@ -45,5 +51,30 @@ describe('server function input schemas', () => {
     expect(ok(routeInputSchema, { hazardDescription: 'x', options: ['detour'] })).toBe(false)
     expect(ok(yardInputSchema, { layout: { 'yard.Y1': 3 }, constraints: {} })).toBe(false)
     expect(ok(yardInputSchema, { layout: {} })).toBe(false)
+  })
+
+  it('bound list and string sizes (public endpoints)', () => {
+    const lamp = { vin: 'V', step: 'headlights', telemetry: {}, frames: [] as string[] }
+    const many = Array.from({ length: MAX_FRAMES + 1 }, () => 'AAAA')
+    expect(ok(lampInputSchema, { ...lamp, frames: many })).toBe(false)
+    const huge = 'A'.repeat(MAX_FRAME_CHARS + 1)
+    const bigGate = { vin: 'V', expectedColour: 'red', frames: { ...frames, front: huge } }
+    expect(ok(gateInputSchema, bigGate)).toBe(false)
+    const box = { id: 'o', x: 0, y: 0, yaw: 0, length: 1, width: 1, moving: false }
+    const park = (n: number) => ({
+      vin: 'V',
+      pose,
+      slot,
+      obstacles: Array.from({ length: n }, (_, i) => ({ ...box, id: `o${i}` })),
+    })
+    expect(ok(parkingInputSchema, park(MAX_OBSTACLES))).toBe(true)
+    expect(ok(parkingInputSchema, park(MAX_OBSTACLES + 1))).toBe(false)
+    const reason = 'x'.repeat(MAX_TEXT_CHARS + 1)
+    expect(ok(routeInputSchema, { hazardDescription: reason, options: ['lane_c'] })).toBe(false)
+    const keys = (n: number) => Array.from({ length: n }, (_, i) => `k${i}`)
+    const layout = Object.fromEntries(keys(MAX_SLOTS + 1).map((key) => [key, null]))
+    expect(ok(yardInputSchema, { layout, constraints: {} })).toBe(false)
+    const telemetry = Object.fromEntries(keys(MAX_TELEMETRY_KEYS + 1).map((key) => [key, 1]))
+    expect(ok(lampInputSchema, { ...lamp, telemetry })).toBe(false)
   })
 })

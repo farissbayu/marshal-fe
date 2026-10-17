@@ -2,7 +2,7 @@
 // rejects anything unsafe, `orderMoves` makes a car wait when its target is still occupied by a
 // car that moves later (P2 waits for P1), and moves are dispatched one at a time.
 
-import { patchCar, setSlot, slotToPoint } from '../state'
+import { assignedSlots, patchCar, setSlot, slotToPoint } from '../state'
 import type { YardMove } from '../types'
 import type { FlowContext, OrderedMove } from './context'
 
@@ -142,10 +142,19 @@ export async function requestYardReplan(
   const reserved = constraints.reservedSlots ?? []
   ctx.update((state) => ({ ...state, reserved: [...new Set([...state.reserved, ...reserved])] }))
   const before = ctx.state()
-  const replan = await ctx.ai.replanYardSlots({ layout: { ...before.layout }, constraints })
+  // Slots a car is driving or parking into are off limits too, for Gemini and the validation.
+  const modelConstraints: YardConstraints = {
+    ...constraints,
+    reservedSlots: [...new Set([...before.reserved, ...assignedSlots(before)])],
+  }
+  const replan = await ctx.ai.replanYardSlots({
+    layout: { ...before.layout },
+    constraints: modelConstraints,
+  })
 
   const layout = ctx.state().layout
-  const valid = validateReplan(layout, replan.moves, ctx.state().reserved)
+  const blocked = [...ctx.state().reserved, ...assignedSlots(ctx.state())]
+  const valid = validateReplan(layout, replan.moves, blocked)
   const order = orderMoves(layout, valid.accepted)
   const rejected = [...valid.rejected, ...order.rejected]
   for (const { move, reason } of rejected) {
@@ -174,7 +183,10 @@ export function dispatchNext(ctx: FlowContext): void {
   const move = ctx.yard.queue.shift()
   if (!move) return
   const layout = ctx.state().layout
-  if (layout[move.from] !== move.vin || layout[move.to] !== null) {
+  const assignedElsewhere = Object.values(ctx.state().cars).some(
+    (car) => car.vin !== move.vin && car.slot === move.to && layout[move.to] !== car.vin,
+  )
+  if (layout[move.from] !== move.vin || layout[move.to] !== null || assignedElsewhere) {
     ctx.decide(move.vin, 'YARD', `Dropped move ${move.from} -> ${move.to}: yard changed`, {
       exception: true,
     })

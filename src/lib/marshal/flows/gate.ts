@@ -2,6 +2,7 @@
 // ask Gemini for the colour / damage check, log it, then send the car to the test track (pass)
 // or the electrical rework bay (fail).
 
+import { UNVERIFIED_FAULT } from '../../serverFns/logic'
 import { patchCar } from '../state'
 import type { GateView } from '../types'
 import type { FlowContext } from './context'
@@ -45,6 +46,7 @@ export async function handleGateArrival(ctx: FlowContext, vin: string): Promise<
     `Gate FAIL: ${faults}; saw ${result.colour}, built ${car.expectedColour} (${confidence})`,
     { exception: true, degraded: result.degraded },
   )
-  ctx.update((state) => patchCar(state, vin, { stage: 'rework', reworkReason: 'gate' }))
+  const reworkReason = result.faults.includes(UNVERIFIED_FAULT) ? 'inspection' : 'gate'
+  ctx.update((state) => patchCar(state, vin, { stage: 'rework', reworkReason }))
   ctx.go(vin, ['rework.electrical'], 'rework')
 }

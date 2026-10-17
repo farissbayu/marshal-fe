@@ -5,6 +5,13 @@
 
 import { create } from 'zustand'
 import type { TruthHintPort } from '#/lib/marshal/flows/context'
+import type { YardConstraints } from '#/lib/marshal/flows/yard'
+import {
+  clearHazard,
+  type HazardPreset,
+  type HazardSite,
+  stageHazard,
+} from '#/lib/marshal/hazards'
 import { type CarSpec, createOrchestrator, type Orchestrator } from '#/lib/marshal/orchestrator'
 import { createInitialState, type MarshalState, type Truck } from '#/lib/marshal/state'
 import { type LampFault, ScriptedDrivingSystem } from '#/lib/marshal/testing/scriptedSystem'
@@ -16,6 +23,7 @@ import type {
   ParkingPort,
 } from '#/lib/marshal/types'
 import { createMarshalAi, type MarshalAi } from '#/lib/serverFns/client'
+import { offlineAssist, offlineGate, offlineLamp } from '#/lib/serverFns/logic'
 
 /**
  * Everything the orchestrator needs from an engine. `tick` and `time` are optional: a
@@ -30,6 +38,11 @@ export type ShiftBackend = DrivingSystem &
     tick?: (dt: number) => void
     /** Sim time in seconds. */
     readonly time?: number
+    /**
+     * True when gate, evidence and assist frames are placeholders rather than JPEGs (scripted
+     * engine). Image checks then stay offline instead of sending them to Gemini.
+     */
+    readonly placeholderFrames?: boolean
   }
 
 /** A scripted blocker: props appear next to a car, which stops and asks for help. */
@@ -43,6 +56,25 @@ export type ShiftBlocker = {
   withWorker?: boolean
 }
 
+/** Scene A: a hazard staged at a site; the route choice sees its description until cleared. */
+export type ShiftHazard = {
+  /** Sim second the hazard appears. */
+  at: number
+  /** Sim second the hazard is cleared (kept for the whole shift when absent). */
+  clearAt?: number
+  site: HazardSite
+  preset: HazardPreset
+}
+
+/** Scene D: a truck runs late and the yard is re-planned. */
+export type ShiftLateTruck = {
+  /** Sim second the truck is reported late. */
+  at: number
+  /** Dock truck id; its state becomes 'waiting'. */
+  truck: string
+  constraints: YardConstraints
+}
+
 /** What runs on a shift. */
 export type ShiftScenario = {
   cars: CarSpec[]
@@ -51,9 +83,14 @@ export type ShiftScenario = {
   /** Lamp faults set right after the cars spawn. */
   faults?: Record<string, LampFault[]>
   blockers?: ShiftBlocker[]
+  hazards?: ShiftHazard[]
+  lateTrucks?: ShiftLateTruck[]
 }
 
-/** The demo shift: a clean car, a blocked lane, a wrong colour, a dark headlight. */
+/**
+ * The demo shift: a clean car, a blocked lane, a wrong colour, a dark headlight, a forklift at
+ * the finishing corner (Scene A) and a late truck that triggers a yard re-plan (Scene D).
+ */
 export const DEFAULT_SCENARIO: ShiftScenario = {
   cars: [
     { vin: 'P001', colour: 'blue' },
@@ -61,10 +98,10 @@ export const DEFAULT_SCENARIO: ShiftScenario = {
     { vin: 'P003', colour: 'red', expectedColour: 'white' },
     { vin: 'P004', colour: 'silver' },
     { vin: 'P005', colour: 'black' },
-    { vin: 'P090', colour: 'green', parkedAt: 'A8' },
+    { vin: 'P090', colour: 'green', parkedAt: 'A7' },
   ],
   trucks: [
-    { id: 'T-1', state: 'loading', slots: ['A8'] },
+    { id: 'T-1', state: 'loading', slots: ['A7'] },
     { id: 'T-2', state: 'truck', slots: [] },
     { id: 'T-3', state: 'truck', slots: [] },
   ],
@@ -76,6 +113,17 @@ export const DEFAULT_SCENARIO: ShiftScenario = {
       reason: 'Box and worker blocking the lane',
       options: ['wait_for_removal', 'pass_left_3kmh', 'reroute_lane_c'],
       withWorker: true,
+    },
+  ],
+  hazards: [{ at: 60, clearAt: 180, site: 'finishing_corner', preset: 'forklift_unloading' }],
+  lateTrucks: [
+    {
+      at: 150,
+      truck: 'T-1',
+      constraints: {
+        priorityVins: ['P090'],
+        reason: 'Late truck T-1: P090 moves up to the front row',
+      },
     },
   ],
 }
@@ -125,9 +173,9 @@ export type ShiftStore = {
   advance: (seconds: number) => void
   /** Swaps the engine (instance or factory used on every restart) and restarts. */
   setBackend: (backend: ShiftBackend | (() => ShiftBackend)) => void
-  /** Replaces the AI client, scenario and/or backend, then restarts. */
+  /** Replaces the AI client (null restores the default), scenario and/or backend; restarts. */
   configure: (opts: {
-    ai?: MarshalAi
+    ai?: MarshalAi | null
     scenario?: ShiftScenario
     backend?: ShiftBackend | (() => ShiftBackend)
   }) => void
@@ -147,6 +195,23 @@ let skipUntil = 0
 let fired = new Set<string>()
 /** Assist case id -> prop ids to clear once the case is decided. */
 let blockerProps = new Map<string, string[]>()
+/** Hazard index -> staged prop ids. */
+let hazardProps = new Map<number, string[]>()
+
+/**
+ * The AI client used when none is configured: Gemini via the server functions, except that the
+ * image checks (gate, lamp, assist) stay offline while the engine only has placeholder frames.
+ * @param engine - The running engine.
+ * @returns MarshalAi for the shift.
+ */
+export function defaultShiftAi(engine: Pick<ShiftBackend, 'placeholderFrames'>): MarshalAi {
+  if (!engine.placeholderFrames) return createMarshalAi()
+  return createMarshalAi({
+    evaluateGatePhotos: async (input) => offlineGate(input),
+    evaluateLampEvidence: async (input) => offlineLamp(input),
+    analyzeAssistClip: async (input) => offlineAssist(input),
+  })
+}
 
 /**
  * The running engine (for the 3D view slot); null before the shift starts.
@@ -195,6 +260,7 @@ function build(): void {
   backend = engine
   fired = new Set()
   blockerProps = new Map()
+  hazardProps = new Map()
   const pauseWhenNeeded = useShiftStore.getState().shift.pauseWhenNeeded
   const hasClock = backendTime() !== undefined
   const orch = createOrchestrator({
@@ -203,7 +269,7 @@ function build(): void {
     evidence: engine,
     parking: engine,
     hints: engine,
-    ai: aiClient ?? createMarshalAi(),
+    ai: aiClient ?? defaultShiftAi(engine),
     ...(hasClock ? { clock: () => backendTime() ?? 0 } : {}),
     pauseWhenNeeded,
   })
@@ -258,6 +324,41 @@ function runBlockers(state: MarshalState): void {
     if (state.cases[case_id]?.status !== 'decided') continue
     for (const id of ids) engine.removeProp(id)
     blockerProps.delete(case_id)
+  }
+  runHazards(engine, now)
+  runLateTrucks(now)
+}
+
+function runHazards(engine: ShiftBackend, now: number): void {
+  const orch = orchestrator
+  if (!orch) return
+  for (const [index, hazard] of (scenario.hazards ?? []).entries()) {
+    const key = `hazard-${index}`
+    if (!fired.has(key) && now >= hazard.at) {
+      fired.add(key)
+      const staged = stageHazard(engine, hazard.site, hazard.preset)
+      hazardProps.set(index, staged.ids)
+      orch.setHazard(staged.description)
+    }
+    const ids = hazardProps.get(index)
+    if (ids && hazard.clearAt !== undefined && now >= hazard.clearAt) {
+      clearHazard(engine, ids)
+      hazardProps.delete(index)
+      orch.setHazard(null)
+    }
+  }
+}
+
+function runLateTrucks(now: number): void {
+  const orch = orchestrator
+  if (!orch) return
+  for (const [index, late] of (scenario.lateTrucks ?? []).entries()) {
+    const key = `late-${index}`
+    if (fired.has(key) || now < late.at) continue
+    fired.add(key)
+    orch
+      .applyYardReplan(late.constraints, { truck: { id: late.truck, state: 'waiting' } })
+      .catch((error: unknown) => console.error('[shift] yard re-plan failed:', error))
   }
 }
 
@@ -415,7 +516,7 @@ export const useShiftStore = create<ShiftStore>((set, get) => ({
   },
 
   configure(opts) {
-    if (opts.ai) aiClient = opts.ai
+    if (opts.ai !== undefined) aiClient = opts.ai
     if (opts.scenario) scenario = opts.scenario
     if (opts.backend) backendSource = opts.backend
     build()

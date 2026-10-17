@@ -3,6 +3,7 @@
 // fails the step and sends the car to `rework.electrical`. After the repair the failed steps are
 // re-run (routine_steps) and a PASS sends the car on to `report_point`.
 
+import { UNVERIFIED } from '../../serverFns/logic'
 import { patchCar } from '../state'
 import type { TrackStepEvent } from '../types'
 import type { FlowContext, MissionRecord } from './context'
@@ -65,7 +66,10 @@ async function evaluateStep(
   if (result.pass) return
 
   mission.failed.push(event.step)
-  ctx.update((state) => patchCar(state, event.vin, { stage: 'rework', reworkReason: 'lamp' }))
+  // An unverifiable camera check (Gemini down, no hint) is held for a person, not repaired.
+  const held = ctx.state().cars[event.vin]?.reworkReason === 'inspection'
+  const reworkReason = held || result.observed === UNVERIFIED ? 'inspection' : 'lamp'
+  ctx.update((state) => patchCar(state, event.vin, { stage: 'rework', reworkReason }))
   const rework = ctx.go(event.vin, ['rework.electrical'], 'rework')
   rework.routine_steps = [...mission.failed]
 }
@@ -81,7 +85,11 @@ export function handleReworkDone(ctx: FlowContext, vin: string): void {
   if (!car) return
   ctx.update((state) => patchCar(state, vin, { location: 'rework.electrical' }))
   if (car.reworkReason !== 'lamp') {
-    ctx.decide(vin, 'PLANT', 'Held in the rework bay for body / paint repair', { exception: true })
+    const why =
+      car.reworkReason === 'inspection'
+        ? 'Held in the rework bay: AI check unavailable, a person inspects the car'
+        : 'Held in the rework bay for body / paint repair'
+    ctx.decide(vin, 'PLANT', why, { exception: true })
     return
   }
 

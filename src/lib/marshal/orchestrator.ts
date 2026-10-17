@@ -296,6 +296,7 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
                 stage: 'parked',
                 location: point,
                 slot,
+                preParked: true,
                 decisions: [],
               }),
               slot,
