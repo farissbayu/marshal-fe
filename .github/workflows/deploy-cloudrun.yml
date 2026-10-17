@@ -1,5 +1,7 @@
-# Verify, build and deploy to Cloud Run on every push to the threejs branch. Pull requests into
-# threejs run the verify job (plus a docker build) only, so a change is built before it deploys.
+# Verify, build and deploy to Cloud Run on every push to a deploy branch (threejs and
+# feat/qais-marshal-flows-gcp). Pull requests into threejs run the verify job (plus a docker
+# build) only, so a change is built before it deploys. The deploy branches must match
+# github_branches in infra/gcp (the WIF provider rejects any other ref).
 # Auth uses Workload Identity Federation (no JSON keys). Configure these repository variables
 # from the infra/gcp Terraform outputs (see docs/deployment-gcp.md):
 #   GCP_WIF_PROVIDER, GCP_DEPLOY_SA, GCP_AR_REPO, GCP_REGION, GCP_CLOUD_RUN_SERVICE, GCP_APP_URL (optional)
@@ -7,7 +9,7 @@ name: Deploy to Cloud Run
 
 on:
   push:
-    branches: [threejs]
+    branches: [threejs, feat/qais-marshal-flows-gcp]
   pull_request:
     branches: [threejs]
   workflow_dispatch:
@@ -43,9 +45,11 @@ jobs:
 
   deploy:
     needs: verify
-    # The WIF provider only accepts tokens from refs/heads/threejs, so never run elsewhere
+    # The WIF provider only accepts tokens from the github_branches refs, so never run elsewhere
     # (pull requests only verify).
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/threejs'
+    if: >-
+      github.event_name != 'pull_request' &&
+      (github.ref == 'refs/heads/threejs' || github.ref == 'refs/heads/feat/qais-marshal-flows-gcp')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -79,6 +83,9 @@ jobs:
           service: ${{ vars.GCP_CLOUD_RUN_SERVICE }}
           region: ${{ vars.GCP_REGION }}
           image: ${{ steps.image.outputs.ref }}
+          # Must equal min_instances / max_instances in infra/gcp so a deploy never drifts from
+          # Terraform.
+          flags: --min-instances=1 --max-instances=1
 
       - name: Summary
         env:

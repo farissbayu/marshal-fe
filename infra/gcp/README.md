@@ -3,7 +3,7 @@
 Terraform for the production deployment: global external Application Load Balancer, serverless
 NEG, Cloud Run (ingress restricted to the LB), Artifact Registry, runtime service account with
 Vertex AI access, a Cloud Armor rate limit on the server functions, and Workload Identity
-Federation for GitHub Actions (pinned to the deploy workflow file and branch).
+Federation for GitHub Actions (pinned to the deploy workflow file and branches).
 
 | File | Contents |
 | --- | --- |

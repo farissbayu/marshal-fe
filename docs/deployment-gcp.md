@@ -8,7 +8,7 @@ browser ──HTTP(S)──> global external Application LB (static IP, optional
                                                                    ├─ serve.mjs (Bun): dist/client static + /healthz
                                                                    └─ dist/server/server.js: SSR + server functions
                                                                          └─> Vertex AI Gemini (runtime service account)
-GitHub Actions (push to threejs) ──OIDC──> Workload Identity Federation ──> deployer SA
+GitHub Actions (push to deploy branch) ──OIDC──> Workload Identity Federation ──> deployer SA
     └─ docker build ─> Artifact Registry ─> gcloud run deploy (new revision)
 ```
 
@@ -69,24 +69,28 @@ gh variable set GCP_APP_URL           --body "$(terraform output -raw url)"   # 
 
 ## 3. Continuous deployment
 
-`.github/workflows/deploy-cloudrun.yml` runs on every push to `threejs` (and manually via
-`workflow_dispatch`). Pull requests into `threejs` run only `verify` plus a `docker build`, so
+`.github/workflows/deploy-cloudrun.yml` runs on every push to `threejs` or
+`feat/qais-marshal-flows-gcp` (and manually via `workflow_dispatch` on those branches). Pull requests into `threejs` run only `verify` plus a `docker build`, so
 open a PR first: the first push to `threejs` should not be the first real build.
 
 1. `verify`: `bun install --frozen-lockfile` + `bun run verify` (lint, typecheck, standalone
    guard, tests, build).
 2. `deploy`: authenticates with `google-github-actions/auth` through WIF, builds the image,
    pushes `$GCP_AR_REPO/marshal-threejs:<sha>`, and deploys it with
-   `google-github-actions/deploy-cloudrun`.
+   `google-github-actions/deploy-cloudrun` with `--min-instances=1 --max-instances=1`. These
+   flags must match `min_instances` / `max_instances` in Terraform (both default to 1), otherwise
+   every deploy overrides the Terraform scaling.
 
 The WIF provider's `attribute_condition` only accepts tokens whose `repository` is
-`farissbayu/marshal-fe`, whose `ref` is `refs/heads/threejs` and whose `workflow_ref` is
-`.github/workflows/deploy-cloudrun.yml` on that branch. Other branches, forks, pull requests and
-any other workflow file merged into `threejs` cannot obtain GCP credentials. Set
+`farissbayu/marshal-fe`, whose `ref` is one of the `github_branches` (`refs/heads/threejs`,
+`refs/heads/feat/qais-marshal-flows-gcp`) and whose `workflow_ref` is
+`.github/workflows/deploy-cloudrun.yml` on that same branch. Other branches, forks, pull requests
+and any other workflow file merged into a deploy branch cannot obtain GCP credentials. Set
 `github_repository_id` (`gh api repos/farissbayu/marshal-fe --jq .id`) to also pin the numeric
 repository id, which survives renames and rejects a re-created repository with the same name.
-Change `github_repository` / `github_branch` / `github_workflow_file` in Terraform if the repo,
-branch or workflow file changes.
+Change `github_repository` / `github_branches` / `github_workflow_file` in Terraform if the repo,
+branches or workflow file change, and keep `on.push.branches` plus the `deploy` job condition in
+the workflow in sync with `github_branches`.
 
 ## 4. Domain and HTTPS (optional)
 
@@ -104,7 +108,7 @@ gcloud run services update-traffic marshal-threejs --region asia-southeast2 \
   --to-revisions <previous-revision>=100
 ```
 
-The next push to `threejs` deploys a new revision and sends 100% traffic to it again.
+The next push to a deploy branch deploys a new revision and sends 100% traffic to it again.
 
 ## Security and cost notes
 
@@ -117,7 +121,7 @@ The next push to `threejs` deploys a new revision and sends 100% traffic to it a
   every request (at most 8 frames of about 512 KB, 64 parking obstacles, 100 yard slots, 500
   character texts); a Cloud Armor policy on the backend service throttles `/_serverFn/*` to
   `ai_rate_limit_per_minute` requests per client IP (default 120, excess gets HTTP 429 and the
-  browser falls back to the offline answers); and `max_instances` (default 3) caps concurrency.
+  browser falls back to the offline answers); and `max_instances` (default 1, with `min_instances` 1 for no cold starts) caps concurrency.
   Cloud Armor Standard is billed per policy, rule and request. For anything beyond a demo, put
   the LB behind IAP as well.
 - While the `/shift` dashboard runs on the scripted engine (placeholder frames, not JPEGs), the

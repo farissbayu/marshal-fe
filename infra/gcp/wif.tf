@@ -1,8 +1,9 @@
-# Workload Identity Federation: GitHub Actions on <github_repository>@<github_branch> can
+# Workload Identity Federation: GitHub Actions on <github_repository>@<github_branches> can
 # impersonate the deployer service account with short-lived tokens (no JSON keys).
 
 locals {
-  deploy_workflow_ref = "${var.github_repository}/.github/workflows/${var.github_workflow_file}@refs/heads/${var.github_branch}"
+  deploy_refs          = [for b in var.github_branches : "refs/heads/${b}"]
+  deploy_workflow_refs = [for r in local.deploy_refs : "${var.github_repository}/.github/workflows/${var.github_workflow_file}@${r}"]
 }
 
 resource "google_iam_workload_identity_pool" "github" {
@@ -17,7 +18,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
   workload_identity_pool_provider_id = "github-oidc"
   display_name                       = "GitHub OIDC"
-  description                        = "Accepts ${var.github_repository} on refs/heads/${var.github_branch} only."
+  description                        = "Accepts ${var.github_repository} on ${join(", ", local.deploy_refs)} only."
 
   attribute_mapping = {
     "google.subject"          = "assertion.sub"
@@ -28,13 +29,13 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "attribute.workflow_ref"  = "assertion.workflow_ref"
   }
 
-  # Only the deploy workflow file on the deploy branch of this repository can authenticate:
+  # Only the deploy workflow file on a deploy branch of this repository can authenticate:
   # another workflow merged into the branch cannot impersonate the deployer. The numeric
   # repository id (when set) also survives renames and blocks a re-created repo with the same name.
   attribute_condition = join(" && ", compact([
     "assertion.repository == '${var.github_repository}'",
-    "assertion.ref == 'refs/heads/${var.github_branch}'",
-    "assertion.workflow_ref == '${local.deploy_workflow_ref}'",
+    "assertion.ref in [${join(", ", [for r in local.deploy_refs : "'${r}'"])}]",
+    "assertion.workflow_ref in [${join(", ", [for r in local.deploy_workflow_refs : "'${r}'"])}]",
     var.github_repository_id != "" ? "assertion.repository_id == '${var.github_repository_id}'" : "",
   ]))
 

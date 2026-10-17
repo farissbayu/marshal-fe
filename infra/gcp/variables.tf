@@ -31,10 +31,15 @@ variable "github_repository" {
   }
 }
 
-variable "github_branch" {
-  description = "Only GitHub Actions runs on this branch may obtain deploy credentials."
-  type        = string
-  default     = "threejs"
+variable "github_branches" {
+  description = "Only GitHub Actions runs on these branches may obtain deploy credentials. Keep in sync with on.push.branches and the deploy job condition in .github/workflows/deploy-cloudrun.yml."
+  type        = list(string)
+  default     = ["threejs", "feat/qais-marshal-flows-gcp"]
+
+  validation {
+    condition     = length(var.github_branches) >= 1 && alltrue([for b in var.github_branches : can(regex("^[A-Za-z0-9_./-]+$", b))])
+    error_message = "github_branches must list at least one branch name (letters, digits, _ . / -)."
+  }
 }
 
 variable "github_workflow_file" {
@@ -84,19 +89,24 @@ variable "gemini_model" {
 }
 
 variable "min_instances" {
-  description = "Minimum Cloud Run instances. 0 scales to zero (cold starts); 1 keeps one warm instance."
+  description = "Minimum Cloud Run instances. 0 scales to zero (cold starts); 1 keeps one warm instance. Keep in sync with --min-instances in .github/workflows/deploy-cloudrun.yml."
   type        = number
-  default     = 0
+  default     = 1
+
+  validation {
+    condition     = var.min_instances >= 0
+    error_message = "min_instances must be 0 or more."
+  }
 }
 
 variable "max_instances" {
-  description = "Maximum Cloud Run instances. Also caps Gemini spend under load."
+  description = "Maximum Cloud Run instances. Also caps Gemini spend under load. Keep in sync with --max-instances in .github/workflows/deploy-cloudrun.yml."
   type        = number
-  default     = 3
+  default     = 1
 
   validation {
-    condition     = var.max_instances >= 1
-    error_message = "max_instances must be at least 1."
+    condition     = var.max_instances >= 1 && var.max_instances >= var.min_instances
+    error_message = "max_instances must be at least 1 and not below min_instances."
   }
 }
 
