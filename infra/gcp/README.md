@@ -2,7 +2,8 @@
 
 Terraform for the production deployment: global external Application Load Balancer, serverless
 NEG, Cloud Run (ingress restricted to the LB), Artifact Registry, runtime service account with
-Vertex AI access, and Workload Identity Federation for GitHub Actions.
+Vertex AI access, a Cloud Armor rate limit on the server functions, and Workload Identity
+Federation for GitHub Actions (pinned to the deploy workflow file and branch).
 
 | File | Contents |
 | --- | --- |
@@ -11,7 +12,7 @@ Vertex AI access, and Workload Identity Federation for GitHub Actions.
 | `apis.tf` | Required project APIs, shared labels |
 | `artifact_registry.tf` | Docker repository with cleanup policies |
 | `cloud_run.tf` | Runtime SA, Cloud Run service, public invoker binding |
-| `load_balancer.tf` | Global IP, NEG, backend, URL maps, HTTP(S) proxies, forwarding rules |
+| `load_balancer.tf` | Global IP, NEG, backend, Cloud Armor rate limit, URL maps, HTTP(S) proxies, forwarding rules |
 | `wif.tf` | WIF pool/provider, deployer SA and its IAM |
 | `outputs.tf` | Values for GitHub repository variables |
 

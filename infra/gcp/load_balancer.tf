@@ -25,6 +25,7 @@ resource "google_compute_backend_service" "app" {
   name                  = "${var.name_prefix}-backend"
   load_balancing_scheme = "EXTERNAL_MANAGED"
   protocol              = "HTTPS"
+  security_policy       = google_compute_security_policy.app.id
 
   backend {
     group = google_compute_region_network_endpoint_group.app.id
@@ -34,6 +35,53 @@ resource "google_compute_backend_service" "app" {
     enable      = true
     sample_rate = 1.0
   }
+}
+
+# Cloud Armor: the server functions (Gemini calls, server-side A*) are public RPC endpoints, so
+# they are rate limited per client IP. Everything else (static assets, pages) is allowed.
+resource "google_compute_security_policy" "app" {
+  name        = "${var.name_prefix}-armor"
+  description = "Rate limits the server function RPC endpoints per client IP."
+  type        = "CLOUD_ARMOR"
+
+  rule {
+    action      = "throttle"
+    priority    = 1000
+    description = "Server functions: ${var.ai_rate_limit_per_minute} requests per IP per minute"
+
+    match {
+      expr {
+        expression = "request.path.startsWith('/_serverFn')"
+      }
+    }
+
+    rate_limit_options {
+      conform_action = "allow"
+      exceed_action  = "deny(429)"
+      enforce_on_key = "IP"
+
+      rate_limit_threshold {
+        count        = var.ai_rate_limit_per_minute
+        interval_sec = 60
+      }
+    }
+  }
+
+  rule {
+    action      = "allow"
+    priority    = 2147483647
+    description = "Default allow"
+
+    match {
+      versioned_expr = "SRC_IPS_V1"
+
+      config {
+        src_ip_ranges = ["*"]
+      }
+    }
+  }
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_compute_url_map" "app" {

@@ -1,4 +1,5 @@
-# Verify, build and deploy to Cloud Run on every push to the threejs branch.
+# Verify, build and deploy to Cloud Run on every push to the threejs branch. Pull requests into
+# threejs run the verify job (plus a docker build) only, so a change is built before it deploys.
 # Auth uses Workload Identity Federation (no JSON keys). Configure these repository variables
 # from the infra/gcp Terraform outputs (see docs/deployment-gcp.md):
 #   GCP_WIF_PROVIDER, GCP_DEPLOY_SA, GCP_AR_REPO, GCP_REGION, GCP_CLOUD_RUN_SERVICE, GCP_APP_URL (optional)
@@ -6,6 +7,8 @@ name: Deploy to Cloud Run
 
 on:
   push:
+    branches: [threejs]
+  pull_request:
     branches: [threejs]
   workflow_dispatch:
 
@@ -34,10 +37,15 @@ jobs:
 
       - run: bun run verify
 
+      - name: Docker build (pull requests)
+        if: github.event_name == 'pull_request'
+        run: docker build --tag "${IMAGE_NAME}:verify" .
+
   deploy:
     needs: verify
-    # The WIF provider only accepts tokens from refs/heads/threejs, so never run elsewhere.
-    if: github.ref == 'refs/heads/threejs'
+    # The WIF provider only accepts tokens from refs/heads/threejs, so never run elsewhere
+    # (pull requests only verify).
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/threejs'
     runs-on: ubuntu-latest
     permissions:
       contents: read

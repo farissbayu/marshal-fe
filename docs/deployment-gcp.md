@@ -70,7 +70,8 @@ gh variable set GCP_APP_URL           --body "$(terraform output -raw url)"   # 
 ## 3. Continuous deployment
 
 `.github/workflows/deploy-cloudrun.yml` runs on every push to `threejs` (and manually via
-`workflow_dispatch`):
+`workflow_dispatch`). Pull requests into `threejs` run only `verify` plus a `docker build`, so
+open a PR first: the first push to `threejs` should not be the first real build.
 
 1. `verify`: `bun install --frozen-lockfile` + `bun run verify` (lint, typecheck, standalone
    guard, tests, build).
@@ -79,16 +80,21 @@ gh variable set GCP_APP_URL           --body "$(terraform output -raw url)"   # 
    `google-github-actions/deploy-cloudrun`.
 
 The WIF provider's `attribute_condition` only accepts tokens whose `repository` is
-`farissbayu/marshal-fe` and whose `ref` is `refs/heads/threejs`. Other branches, forks and pull
-requests cannot obtain GCP credentials. Change `github_repository` / `github_branch` in Terraform
-if the repo or branch changes.
+`farissbayu/marshal-fe`, whose `ref` is `refs/heads/threejs` and whose `workflow_ref` is
+`.github/workflows/deploy-cloudrun.yml` on that branch. Other branches, forks, pull requests and
+any other workflow file merged into `threejs` cannot obtain GCP credentials. Set
+`github_repository_id` (`gh api repos/farissbayu/marshal-fe --jq .id`) to also pin the numeric
+repository id, which survives renames and rejects a re-created repository with the same name.
+Change `github_repository` / `github_branch` / `github_workflow_file` in Terraform if the repo,
+branch or workflow file changes.
 
 ## 4. Domain and HTTPS (optional)
 
 Set `domain = "marshal.example.com"` and apply. Then create a DNS `A` record for the domain
 pointing at `terraform output -raw lb_ip`. The Google-managed certificate becomes `ACTIVE` once
 DNS resolves (usually 15 to 60 minutes). After that, HTTP redirects to HTTPS. Without a domain the
-app is served over plain HTTP on the LB IP, which is fine for a demo only.
+app is served over plain HTTP on the LB IP, including the server function RPC calls, which is
+fine for a private demo only: set a domain before sharing the URL.
 
 ## 5. Rollback
 
@@ -106,9 +112,17 @@ The next push to `threejs` deploys a new revision and sends 100% traffic to it a
   `allUsers`; ingress still blocks direct `run.app` access). If your organization enforces
   domain-restricted sharing, the `allUsers` binding fails; use
   `invoker_iam_disabled = true` on the service or an org-policy exception instead.
-- Every batch can trigger Vertex Gemini calls, so anyone who finds the URL can spend your quota.
-  `max_instances` (default 3) caps concurrency, but for anything beyond a demo add a Cloud Armor
-  security policy with rate limiting on the backend service, or put the LB behind IAP.
+- Every batch and shift can trigger Vertex Gemini calls through public server functions, so
+  anyone who finds the URL can spend your quota. Three limits apply: the zod input schemas bound
+  every request (at most 8 frames of about 512 KB, 64 parking obstacles, 100 yard slots, 500
+  character texts); a Cloud Armor policy on the backend service throttles `/_serverFn/*` to
+  `ai_rate_limit_per_minute` requests per client IP (default 120, excess gets HTTP 429 and the
+  browser falls back to the offline answers); and `max_instances` (default 3) caps concurrency.
+  Cloud Armor Standard is billed per policy, rule and request. For anything beyond a demo, put
+  the LB behind IAP as well.
+- While the `/shift` dashboard runs on the scripted engine (placeholder frames, not JPEGs), the
+  gate, lamp and assist image checks stay offline in the browser; only route, parking and yard
+  decisions call Gemini.
 - The deployer service account can only push to the app's Artifact Registry repository, deploy
   Cloud Run revisions (`roles/run.developer`) and act as the runtime service account.
 - Deleting and recreating the WIF pool with the same ID fails for 30 days (soft delete). Change

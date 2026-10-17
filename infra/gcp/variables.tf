@@ -37,6 +37,34 @@ variable "github_branch" {
   default     = "threejs"
 }
 
+variable "github_workflow_file" {
+  description = "Workflow file (under .github/workflows/) that may obtain deploy credentials. Pinned via the workflow_ref OIDC claim."
+  type        = string
+  default     = "deploy-cloudrun.yml"
+}
+
+variable "github_repository_id" {
+  description = "Optional numeric GitHub repository id (gh api repos/OWNER/NAME --jq .id). When set, WIF also pins it, which survives repo renames and rejects a re-created repo with the same name."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = can(regex("^[0-9]*$", var.github_repository_id))
+    error_message = "github_repository_id must be numeric (or empty)."
+  }
+}
+
+variable "ai_rate_limit_per_minute" {
+  description = "Cloud Armor limit on server function (Gemini / A*) requests per client IP per minute. Excess requests get HTTP 429 and the browser falls back to the offline answers."
+  type        = number
+  default     = 120
+
+  validation {
+    condition     = var.ai_rate_limit_per_minute >= 1
+    error_message = "ai_rate_limit_per_minute must be at least 1."
+  }
+}
+
 variable "domain" {
   description = "Optional domain (e.g. marshal.example.com). When set, a Google-managed certificate is created, the LB serves HTTPS and HTTP redirects to HTTPS. When empty, the LB serves plain HTTP on its IP."
   type        = string

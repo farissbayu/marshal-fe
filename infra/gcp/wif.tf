@@ -1,6 +1,10 @@
 # Workload Identity Federation: GitHub Actions on <github_repository>@<github_branch> can
 # impersonate the deployer service account with short-lived tokens (no JSON keys).
 
+locals {
+  deploy_workflow_ref = "${var.github_repository}/.github/workflows/${var.github_workflow_file}@refs/heads/${var.github_branch}"
+}
+
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "${var.name_prefix}-gh"
   display_name              = "GitHub Actions"
@@ -16,13 +20,23 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   description                        = "Accepts ${var.github_repository} on refs/heads/${var.github_branch} only."
 
   attribute_mapping = {
-    "google.subject"       = "assertion.sub"
-    "attribute.repository" = "assertion.repository"
-    "attribute.ref"        = "assertion.ref"
-    "attribute.actor"      = "assertion.actor"
+    "google.subject"          = "assertion.sub"
+    "attribute.repository"    = "assertion.repository"
+    "attribute.repository_id" = "assertion.repository_id"
+    "attribute.ref"           = "assertion.ref"
+    "attribute.actor"         = "assertion.actor"
+    "attribute.workflow_ref"  = "assertion.workflow_ref"
   }
 
-  attribute_condition = "assertion.repository == '${var.github_repository}' && assertion.ref == 'refs/heads/${var.github_branch}'"
+  # Only the deploy workflow file on the deploy branch of this repository can authenticate:
+  # another workflow merged into the branch cannot impersonate the deployer. The numeric
+  # repository id (when set) also survives renames and blocks a re-created repo with the same name.
+  attribute_condition = join(" && ", compact([
+    "assertion.repository == '${var.github_repository}'",
+    "assertion.ref == 'refs/heads/${var.github_branch}'",
+    "assertion.workflow_ref == '${local.deploy_workflow_ref}'",
+    var.github_repository_id != "" ? "assertion.repository_id == '${var.github_repository_id}'" : "",
+  ]))
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
