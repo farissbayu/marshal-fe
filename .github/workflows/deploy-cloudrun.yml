@@ -1,0 +1,84 @@
+# Verify, build and deploy to Cloud Run on every push to the threejs branch.
+# Auth uses Workload Identity Federation (no JSON keys). Configure these repository variables
+# from the infra/gcp Terraform outputs (see docs/deployment-gcp.md):
+#   GCP_WIF_PROVIDER, GCP_DEPLOY_SA, GCP_AR_REPO, GCP_REGION, GCP_CLOUD_RUN_SERVICE, GCP_APP_URL (optional)
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [threejs]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-cloudrun-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: 1.4.3
+  IMAGE_NAME: marshal-threejs
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run verify
+
+  deploy:
+    needs: verify
+    # The WIF provider only accepts tokens from refs/heads/threejs, so never run elsewhere.
+    if: github.ref == 'refs/heads/threejs'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      - name: Build and push image
+        id: image
+        env:
+          IMAGE: ${{ vars.GCP_AR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          docker build --build-arg BUN_VERSION="$BUN_VERSION" -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "ref=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - id: deploy
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: ${{ vars.GCP_CLOUD_RUN_SERVICE }}
+          region: ${{ vars.GCP_REGION }}
+          image: ${{ steps.image.outputs.ref }}
+
+      - name: Summary
+        env:
+          APP_URL: ${{ vars.GCP_APP_URL }}
+          IMAGE: ${{ steps.image.outputs.ref }}
+        run: |
+          {
+            echo "### Deployed to Cloud Run"
+            echo "- Image: \`$IMAGE\`"
+            if [ -n "$APP_URL" ]; then echo "- App (load balancer): $APP_URL"; fi
+          } >> "$GITHUB_STEP_SUMMARY"

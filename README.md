@@ -63,6 +63,13 @@ src/lib/      small utils (colours, storage)
 
 See `docs/ARCHITECTURE.md` for the data flow and `docs/DEMO.md` for a 5-minute demo script.
 
+## Deployment
+
+Production runs on GCP: a global external HTTPS Load Balancer in front of Cloud Run, deployed by
+GitHub Actions through Workload Identity Federation on every push to `threejs`. Terraform is in
+`infra/gcp`; see [docs/deployment-gcp.md](docs/deployment-gcp.md). Locally, `bun run build &&
+bun run start` serves the production build on port 8080.
+
 ## Honest limitations
 
 - The simulation runs in the browser tab (`ssr: false` on the dashboard route). **Closing the

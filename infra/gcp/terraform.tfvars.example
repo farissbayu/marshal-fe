@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars (git-ignored) and adjust.
+project_id = "my-gcp-project"
+
+# Optional overrides (defaults shown).
+# region            = "asia-southeast2"
+# name_prefix       = "marshal-threejs"
+# github_repository = "farissbayu/marshal-fe"
+# github_branch     = "threejs"
+# domain            = "" # e.g. "marshal.example.com" to enable HTTPS
+# gemini_location   = "asia-southeast1"
+# gemini_model      = "gemini-2.5-flash"
+# min_instances     = 0
+# max_instances     = 3
