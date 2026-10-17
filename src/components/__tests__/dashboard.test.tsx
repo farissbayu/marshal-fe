@@ -417,7 +417,7 @@ describe('Dashboard with the shift store', () => {
     expect(useShiftStore.getState().shift.paused).toBe(false)
   })
 
-  it('plays the default shift to the end, including Scene A and Scene D', async () => {
+  it('plays the default shift to the end, including Scenes A, D and E', async () => {
     useShiftStore.getState().configure({ ai: createOfflineMarshalAi(), scenario: DEFAULT_SCENARIO })
     useShiftStore.getState().setPauseWhenNeeded(false)
     const store = () => useShiftStore.getState()
@@ -433,9 +433,14 @@ describe('Dashboard with the shift store', () => {
     expect(shift.progress).toBe(1)
     const texts = shift.feed.map((entry) => entry.text)
     expect(texts.some((text) => text.startsWith('Route via lane_c'))).toBe(true)
-    expect(texts.some((text) => text.startsWith('Re-plan A7 -> '))).toBe(true)
+    // Scene D: the late truck is shown as late (not "here early") and P090 moves up.
+    expect(texts.some((text) => text.startsWith('Re-plan A5 -> '))).toBe(true)
     expect(shift.trucks.find((truck) => truck.id === 'T-1')?.state).toBe('late')
-    expect(shift.layout.A7).toBeNull()
+    expect(shift.layout.A5).not.toBe('P090')
+    // Scene E: P001 parks in A7 (yard.Y7) right behind P091 in A8 (yard.Y8).
+    expect(shift.cars.P001).toMatchObject({ stage: 'parked', slot: 'A7' })
+    expect(shift.layout).toMatchObject({ A7: 'P001', A8: 'P091' })
+    expect(texts).toContain('Parked in A7 (Y7)')
     expect(shift.hazard).toBeNull()
     store().setPauseWhenNeeded(true)
   })

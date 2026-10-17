@@ -55,6 +55,8 @@ export type CarSpec = {
   expectedColour?: string
   /** Pre-park the car in a yard slot (e.g. 'A8') instead of starting at the line end. */
   parkedAt?: string
+  /** Yard slot to assign at the report point when it is free (e.g. 'A7' for Scene E). */
+  targetSlot?: string
 }
 
 /** Options for {@link createOrchestrator}. */
@@ -344,6 +346,7 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
             expectedColour,
             stage: 'to_gate',
             location: 'line_end',
+            ...(spec.targetSlot ? { targetSlot: spec.targetSlot } : {}),
             decisions: [],
           }),
         )

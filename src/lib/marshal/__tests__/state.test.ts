@@ -120,4 +120,13 @@ describe('state', () => {
     expect(yardCells(state).A3).toBe('alert')
     expect(freeSimSlots(state)).toEqual(['A1', 'A2', 'A4', 'A5', 'A6', 'A7', 'A8'])
   })
+
+  it('uses a preferred slot only when it is a free, unreserved row-A slot', () => {
+    let state = setSlot(createInitialState(), 'A8', 'VIN-0')
+    expect(firstFreeSimSlot(state, 'A7')).toBe('A7')
+    expect(firstFreeSimSlot(state, 'A8')).toBe('A1')
+    expect(firstFreeSimSlot(state, 'B1')).toBe('A1')
+    state = { ...state, reserved: ['A7'] }
+    expect(firstFreeSimSlot(state, 'A7')).toBe('A1')
+  })
 })

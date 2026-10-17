@@ -430,3 +430,31 @@ describe('held cars', () => {
     expect(state.progress).toBe(1)
   })
 })
+
+describe('Scene E in the demo slot naming', () => {
+  it('parks in the requested slot A7 (yard.Y7) behind a car parked in A8 (yard.Y8)', async () => {
+    const { ds, orch, feedText } = setup()
+    orch.start([
+      { vin: 'VIN-Y8', colour: 'white', parkedAt: 'A8' },
+      { vin: 'VIN-E', colour: 'blue', targetSlot: 'A7' },
+    ])
+    const parked = await runUntil(ds, orch.getState, (s) => s.cars['VIN-E'].stage === 'parked')
+    expect(parked).toBe(true)
+    expect(orch.getState().layout).toMatchObject({ A7: 'VIN-E', A8: 'VIN-Y8' })
+    const feed = feedText('VIN-E')
+    expect(feed).toContain('YARD Assigned slot A7 (yard.Y7)')
+    expect(feed.some((line) => /^GEMINI VIN-E parking Y7: path [ABC]/.test(line))).toBe(true)
+    expect(feed.at(-1)).toBe('PLANT Parked in A7 (Y7)')
+  })
+
+  it('falls back to the usual slot choice when the requested slot is taken', async () => {
+    const { ds, orch } = setup()
+    orch.start([
+      { vin: 'VIN-Y7', colour: 'white', parkedAt: 'A7' },
+      { vin: 'VIN-E', colour: 'blue', targetSlot: 'A7' },
+    ])
+    const parked = await runUntil(ds, orch.getState, (s) => s.cars['VIN-E'].stage === 'parked')
+    expect(parked).toBe(true)
+    expect(orch.getState().cars['VIN-E'].slot).toBe('A1')
+  })
+})

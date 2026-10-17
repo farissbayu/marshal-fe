@@ -41,7 +41,7 @@ export async function handleReportArrival(ctx: FlowContext, vin: string): Promis
     invalidInput: choice.invalidInput,
   })
 
-  const slot = firstFreeSimSlot(ctx.state())
+  const slot = firstFreeSimSlot(ctx.state(), ctx.state().cars[vin]?.targetSlot)
   if (!slot) {
     ctx.update((state) => patchCar(state, vin, { stage: 'held', held: YARD_FULL_TEXT }))
     ctx.decide(vin, 'YARD', YARD_FULL_TEXT, { exception: true })

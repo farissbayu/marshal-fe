@@ -83,20 +83,23 @@ export type ShiftScenario = {
 }
 
 /**
- * The demo shift: a clean car, a blocked lane, a wrong colour, a dark headlight, a forklift at
- * the finishing corner (Scene A) and a late truck that triggers a yard re-plan (Scene D).
+ * The demo shift: a clean car parked in A7 right behind a car already in A8 (Scene E; slots
+ * A1..A8 are the sim's yard.Y1..Y8, so this is TEAM_PLAN's "Y7 behind Y8"), a blocked lane, a
+ * wrong colour, a dark headlight, a forklift at the finishing corner (Scene A) and a late truck
+ * that triggers a yard re-plan (Scene D).
  */
 export const DEFAULT_SCENARIO: ShiftScenario = {
   cars: [
-    { vin: 'P001', colour: 'blue' },
+    { vin: 'P001', colour: 'blue', targetSlot: 'A7' },
     { vin: 'P002', colour: 'white' },
     { vin: 'P003', colour: 'red', expectedColour: 'white' },
     { vin: 'P004', colour: 'silver' },
     { vin: 'P005', colour: 'black' },
-    { vin: 'P090', colour: 'green', parkedAt: 'A7' },
+    { vin: 'P090', colour: 'green', parkedAt: 'A5' },
+    { vin: 'P091', colour: 'white', parkedAt: 'A8' },
   ],
   trucks: [
-    { id: 'T-1', state: 'loading', slots: ['A7'] },
+    { id: 'T-1', state: 'loading', slots: ['A5'] },
     { id: 'T-2', state: 'truck', slots: [] },
     { id: 'T-3', state: 'truck', slots: [] },
   ],

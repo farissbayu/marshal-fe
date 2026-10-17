@@ -73,6 +73,8 @@ export type CarState = {
    * 'held' stage; a car held at the report point (no slot) is offered a slot again when one frees.
    */
   held?: string
+  /** Requested yard slot (scenario), used at the report point when it is free. */
+  targetSlot?: string
 }
 
 /** A "Waiting on you" case. */
@@ -386,10 +388,12 @@ export function freeSimSlots(state: MarshalState): string[] {
  * to another car. Row-A slots sit nose to tail with almost no fore/aft slack, so a slot whose
  * neighbours are both empty is preferred, then one with a single occupied neighbour, then any.
  * @param state - Current state.
+ * @param preferred - Slot to use when it is free (e.g. a scenario's requested slot).
  * @returns Slot id, or undefined when the sim yard is full.
  */
-export function firstFreeSimSlot(state: MarshalState): string | undefined {
+export function firstFreeSimSlot(state: MarshalState, preferred?: string): string | undefined {
   const free = freeSimSlots(state)
+  if (preferred && free.includes(preferred)) return preferred
   const taken = new Set(Object.values(state.cars).flatMap((car) => (car.slot ? [car.slot] : [])))
   const occupied = (col: number) => {
     const slot = `A${col}`
