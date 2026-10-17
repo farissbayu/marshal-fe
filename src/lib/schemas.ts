@@ -68,8 +68,49 @@ export const flowEventSchema = z.object({
   title: z.string(),
   detail: z.string(),
   level: severitySchema,
+  // Structured decision payload (choice, probs) on route/parking events.
+  data: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 export type FlowEvent = z.infer<typeof flowEventSchema>;
+
+/* ------------------------------------------------------------------ *
+ * Plant (the API's in-process demo plant, behind the dashboard buttons)
+ * ------------------------------------------------------------------ */
+
+export const plantOptionSchema = z.object({
+  id: z.string(),
+  rank: z.number().nullable().optional(),
+  risk: z.string().nullable().optional(),
+  reason: z.string().nullable().optional(),
+});
+export type PlantOption = z.infer<typeof plantOptionSchema>;
+
+export const plantAssistSchema = z.object({
+  case_id: z.string(),
+  vin: z.string(),
+  location: z.string().nullable().optional(),
+  situation: z.string().nullable().optional(),
+  status: z.string().default("OPEN"),
+  recommended: z.string().nullable().optional(),
+  confidence: z.number().nullable().optional(),
+  choice: z.string().nullable().optional(),
+  options: z.array(plantOptionSchema).default([]),
+});
+export type PlantAssist = z.infer<typeof plantAssistSchema>;
+
+export const plantStateSchema = z.object({
+  running: z.boolean(),
+  speed: z.number().optional(),
+  assist: plantAssistSchema.nullable().optional(),
+  cars: z
+    .array(z.object({ vin: z.string(), state: z.string(), location: z.string().nullable() }))
+    .default([]),
+  kpis: z.record(z.string(), z.unknown()).optional(),
+});
+export type PlantState = z.infer<typeof plantStateSchema>;
+
+export const plantSpawnSchema = z.object({ vin: z.string() });
+export const plantRestartSchema = z.object({ restarted: z.boolean() });
 
 /* ------------------------------------------------------------------ *
  * KPI / overview
@@ -512,6 +553,143 @@ export const jobSchema = z.object({
   updated_at: z.string(),
 });
 export type Job = z.infer<typeof jobSchema>;
+
+/* ------------------------------------------------------------------ *
+ * Batch runs
+ * ------------------------------------------------------------------ */
+
+export const batchStatusSchema = z.enum(["queued", "running", "done", "failed", "cancelled"]);
+export type BatchStatus = z.infer<typeof batchStatusSchema>;
+
+export const batchCarSchema = z.object({
+  vin: z.string(),
+  truck_id: z.string().nullable().optional(),
+  expected: z.record(z.string(), z.unknown()).default({}),
+  state: z.string(),
+  stage: z.number(),
+  location: z.string(),
+  slot: z.string().nullable().optional(),
+  gate_verdict: verdictSchema.nullable().optional(),
+  report_verdict: verdictSchema.nullable().optional(),
+  updated_at: z.string(),
+});
+export type BatchCar = z.infer<typeof batchCarSchema>;
+
+const batchFlow1Schema = z.object({
+  released: z.number(),
+  waiting: z.number(),
+  in_yard: z.number(),
+  shipped: z.number(),
+});
+const batchFlow2Schema = z.object({
+  cases: z.number(),
+  open: z.number(),
+  resolved: z.number(),
+  escalated: z.number(),
+});
+const batchVerdictsSchema = z.object({ pass: z.number(), review: z.number(), fail: z.number() });
+const batchFlow4Schema = batchVerdictsSchema.extend({ disagreements: z.number() });
+const batchFlow5Schema = z.object({ pass: z.number(), rework: z.number(), shipped: z.number() });
+
+export const batchFlowCountsSchema = z.object({
+  flow1: batchFlow1Schema,
+  flow2: batchFlow2Schema,
+  flow3: batchVerdictsSchema,
+  flow4: batchFlow4Schema,
+  flow5: batchFlow5Schema,
+  flow6: z.object({ test_requests: z.number(), generated: z.number(), status: z.string() }),
+  flow7: z.object({ runs: z.number(), failures: z.number(), status: z.string() }),
+});
+export type BatchFlowCounts = z.infer<typeof batchFlowCountsSchema>;
+
+export const batchSummarySchema = z.object({
+  batch_id: z.string(),
+  status: batchStatusSchema,
+  engine: z.string(),
+  requested_cars: z.number(),
+  created_cars: z.number(),
+  finished_cars: z.number(),
+  progress: z.number(),
+  created_at: z.string(),
+  started_at: z.string().nullable().optional(),
+  finished_at: z.string().nullable().optional(),
+});
+export type BatchSummary = z.infer<typeof batchSummarySchema>;
+
+export const batchDetailSchema = batchSummarySchema.extend({
+  message: z.string().nullable().optional(),
+  seed: z.number(),
+  incident_enabled: z.boolean(),
+  incident_vin: z.string().nullable().optional(),
+  job_id: z.string(),
+  flow_counts: batchFlowCountsSchema,
+  cars: z.array(batchCarSchema).default([]),
+  report: z.record(z.string(), z.unknown()).nullable().optional(),
+});
+export type BatchDetail = z.infer<typeof batchDetailSchema>;
+
+export const batchAcceptedSchema = z.object({
+  batch_id: z.string(),
+  job_id: z.string(),
+  status: batchStatusSchema,
+  requested_cars: z.number(),
+  created_cars: z.number(),
+});
+
+export const batchEventSchema = z.object({
+  seq: z.number(),
+  flow: z.number().nullable().optional(),
+  source: z.string(),
+  title: z.string(),
+  detail: z.string(),
+  level: severitySchema,
+  at: z.string(),
+});
+export type BatchEvent = z.infer<typeof batchEventSchema>;
+export const batchEventsSchema = z.object({
+  items: z.array(batchEventSchema),
+  next_since: z.number(),
+  has_more: z.boolean(),
+});
+
+export const batchReportSchema = z.object({
+  batch_id: z.string(),
+  status: batchStatusSchema,
+  engine: z.string(),
+  generated_at: z.string(),
+  model: z.string(),
+  batch_size: z.number(),
+  counts: z.record(z.string(), z.unknown()),
+  flow_kpis: z.record(z.string(), z.unknown()),
+  labels: z.object({
+    total: z.number(),
+    caught: z.number(),
+    missed: z.number(),
+    false_alarms: z.number(),
+    cars: z.array(z.record(z.string(), z.unknown())).default([]),
+  }),
+  gemini: z.object({
+    batch_size: z.number(),
+    summary: z.string(),
+    per_flow: z.array(
+      z.object({
+        flow: z.number(),
+        name: z.string(),
+        observation: z.string(),
+        issues: z.array(z.string()).default([]),
+        recommendation: z.string().default(""),
+      }),
+    ),
+    top_issues: z.array(z.string()).default([]),
+    recommendations: z.array(z.string()).default([]),
+    risk: z.enum(["low", "medium", "high"]),
+    degraded: z.boolean().default(false),
+    error: z.string().optional(),
+  }),
+  log: z.object({ events: z.number(), exceptions: z.number() }),
+  duration_s: z.number().nullable().optional(),
+});
+export type BatchReport = z.infer<typeof batchReportSchema>;
 
 export const mediaSchema = z.object({
   media_id: z.string(),

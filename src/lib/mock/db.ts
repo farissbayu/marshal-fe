@@ -1,6 +1,8 @@
 import type {
   Actor,
   AssistanceCase,
+  BatchDetail,
+  BatchEvent,
   CarSummary,
   FlowEvent,
   FunctionalInspection,
@@ -60,12 +62,20 @@ export interface MockDb {
   releases: Release[];
   media: Media[];
   jobs: Job[];
+  batches: MockBatch[];
+  batchEvents: Record<string, BatchEvent[]>;
   jobPayloads: Record<string, Record<string, unknown>>;
   events: FlowEvent[];
   eventSeq: number;
   scenarioSeq: number;
   requestSeq: number;
   jobSeq: number;
+  batchSeq: number;
+}
+
+export interface MockBatch extends BatchDetail {
+  progress_started_at?: number;
+  event_cursor: number;
 }
 
 export function createDb(): MockDb {
@@ -92,12 +102,15 @@ export function createDb(): MockDb {
     releases: releasesFixture(now),
     media: mediaFixtures(),
     jobs: [],
+    batches: [],
+    batchEvents: {},
     jobPayloads: {},
     events: [],
     eventSeq: 0,
     scenarioSeq: 5,
     requestSeq: 3,
     jobSeq: 0,
+    batchSeq: 0,
   };
 }
 

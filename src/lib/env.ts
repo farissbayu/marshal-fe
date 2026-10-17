@@ -20,4 +20,7 @@ export const IS_DEVELOPMENT = import.meta.env.MODE === "development";
 
 export const CAMERA_STREAM_URL = `${API_BASE_URL}/camera/stream`;
 export const CAMERA_SNAPSHOT_URL = `${API_BASE_URL}/camera/snapshot`;
-export const EVENTS_URL = `${API_BASE_URL}/events`;
+// Defaults to the API's SSE; point VITE_EVENTS_URL at marshal_ai's dashboard (:8090) for a local
+// run without the API. Relative paths go through the dev proxy in vite.config.ts.
+export const EVENTS_URL =
+  (import.meta.env.VITE_EVENTS_URL as string | undefined) ?? `${API_BASE_URL}/events`;

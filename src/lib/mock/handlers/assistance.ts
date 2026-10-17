@@ -78,7 +78,9 @@ export function ingestAssistanceCase(req: MockRequest): AssistanceCase {
   const vin = strQuery(req.body.vin) || "VIN-NEW";
   const location = strQuery(req.body.location) || "unknown";
   const situation = strQuery(req.body.situation) || "Obstacle reported";
-  const rawOptions = Array.isArray(req.body.options) ? req.body.options : ["Wait for clearance", "Reroute"];
+  const rawOptions = Array.isArray(req.body.options)
+    ? req.body.options
+    : ["Wait for clearance", "Reroute"];
   const newCaseId = `case-${req.db.assistance.length + 1}`;
   const options = rawOptions.map((opt: string, i: number) => ({
     id: `opt-${i + 1}`,

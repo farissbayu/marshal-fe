@@ -52,9 +52,9 @@ export function useEventStream(url: string = EVENTS_URL, enabled = true) {
       };
 
       source.onmessage = (event) => {
-        const parsed = parseEvent(event.data);
-        if (parsed) {
-          addEvents([parsed]);
+        const parsed = parseEvents(event.data);
+        if (parsed.length > 0) {
+          addEvents(parsed);
           useAppStore.getState().touch();
         }
       };
@@ -79,12 +79,15 @@ export function useEventStream(url: string = EVENTS_URL, enabled = true) {
   }, [url, enabled, mockMode, addEvents, setConnection, setStreamStatus]);
 }
 
-function parseEvent(raw: string): FlowEvent | null {
+export function parseEvents(raw: string): FlowEvent[] {
   try {
     const json = JSON.parse(raw);
-    const parsed = flowEventSchema.safeParse(json);
-    return parsed.success ? parsed.data : null;
+    const items = Array.isArray(json) ? json : [json];
+    return items.flatMap((item) => {
+      const parsed = flowEventSchema.safeParse(item);
+      return parsed.success ? [parsed.data] : [];
+    });
   } catch {
-    return null;
+    return [];
   }
 }

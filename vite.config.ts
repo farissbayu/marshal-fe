@@ -19,6 +19,12 @@ export default defineConfig({
         target: "http://127.0.0.1:8000",
         changeOrigin: true,
       },
+      // marshal_ai's dashboard SSE (stdlib server, no CORS): for a local run without the API,
+      // set VITE_EVENTS_URL=/events.
+      "/events": {
+        target: "http://127.0.0.1:8090",
+        changeOrigin: true,
+      },
     },
   },
   build: {

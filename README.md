@@ -43,6 +43,7 @@ standalone without a backend, cameras, or the CARLA simulator.
 | `VITE_MOCK_MODE` | `true` / `false` | Enable the in-memory mock transport (dev/demo only) |
 | `VITE_APP_TITLE` | `Marshal Control Tower` | Application title |
 | `VITE_POLL_INTERVAL_MS` | `5000` | Active data polling interval (ms) |
+| `VITE_EVENTS_URL` | `/events` | SSE flow-event source; defaults to `{VITE_API_BASE_URL}/events`. Point at marshal_ai's dashboard (`:8090`) for a local run without the API |
 
 > **Mock mode cannot be enabled in production.** `src/lib/env.ts` forces `MOCK_MODE=false`
 > when `import.meta.env.PROD`, and `bun run check:prod` prevents it from reaching a build.
@@ -54,8 +55,9 @@ standalone without a backend, cameras, or the CARLA simulator.
 - `src/lib/api-client.ts` — typed HTTP client: base URL from env, credentials/cookies,
   `AbortController` timeout, HTTP error normalization, Zod validation.
 - `src/lib/api.ts` — typed endpoint layer (Zod schema per response).
-- `src/lib/use-event-stream.ts` — SSE (`/events`) via `EventSource`, auto-reconnect;
-  uses the event simulator in mock mode.
+- `src/lib/use-event-stream.ts` — SSE (`/events`) via `EventSource`, auto-reconnect; parses a
+  single event (marshal_api) or a batch array (marshal_ai dashboard) and feeds the decision feed
+  on `/`; uses the event simulator in mock mode. See `docs/task-08-live-decision-feed.md`.
 - `src/lib/mock/` — in-memory mock transport: consistent fixtures, REST handlers, job engine,
   7-flow event simulator, and canvas camera simulator.
 - `src/lib/stores/` — Zustand: `auth`, `app`, `event-log`, `camera`.
@@ -100,6 +102,7 @@ is `no-cache`.
 
 - **Unit/component & integration** (Vitest + RTL): status badge, option radio group (no
   pre-select), confirmation dialog (anti double-submit), evidence viewer fallback, job polling,
-  and mock transport (filter/validation/mutation).
-- **End-to-end** (Playwright): 4 critical journeys — assistance decision, rework confirmation +
-  mark done, scenario create/review, and release evaluation with gated approval.
+  event-stream parsing (single event or batch), feed-row mapping with probabilities, and mock
+  transport (filter/validation/mutation).
+- **End-to-end** (Playwright): the supervisor screen renders, and the decision feed shows live
+  events (mock mode).

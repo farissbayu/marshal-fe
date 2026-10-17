@@ -8,6 +8,15 @@ import {
   ingestAssistanceCase,
 } from "./handlers/assistance";
 import {
+  cancelBatch,
+  createBatch,
+  getBatch,
+  getBatchEvents,
+  getBatches,
+  getBatchReport,
+  materializeBatches,
+} from "./handlers/batches";
+import {
   getHealth,
   getInspectionKpis,
   getKpis,
@@ -45,6 +54,13 @@ import {
   reviewScenario,
 } from "./handlers/lab";
 import { getMedia } from "./handlers/media";
+import {
+  getPlantState,
+  plantDecide,
+  plantException,
+  plantRestart,
+  plantSpawn,
+} from "./handlers/plant";
 import { decideProposal, getProposal, getProposals } from "./handlers/proposals";
 import {
   getCar,
@@ -73,6 +89,11 @@ const routes: Route[] = [
   { method: "GET", pattern: "/me", handler: getMe },
   { method: "GET", pattern: "/overview", handler: getOverview },
   { method: "GET", pattern: "/kpis", handler: getKpis },
+
+  { method: "GET", pattern: "/batches", handler: getBatches },
+  { method: "GET", pattern: "/batches/:batch_id/events", handler: getBatchEvents },
+  { method: "GET", pattern: "/batches/:batch_id/report", handler: getBatchReport },
+  { method: "GET", pattern: "/batches/:batch_id", handler: getBatch },
 
   { method: "GET", pattern: "/yard", handler: getYard },
   { method: "GET", pattern: "/cars", handler: getCars },
@@ -103,6 +124,12 @@ const routes: Route[] = [
   { method: "GET", pattern: "/jobs/:job_id", handler: getJob },
   { method: "GET", pattern: "/media/:media_id", handler: getMedia },
 
+  { method: "GET", pattern: "/plant/state", handler: getPlantState },
+  { method: "POST", pattern: "/plant/spawn", handler: plantSpawn },
+  { method: "POST", pattern: "/plant/exception", handler: plantException },
+  { method: "POST", pattern: "/plant/assist/:case_id/decide", handler: plantDecide },
+  { method: "POST", pattern: "/plant/restart", handler: plantRestart },
+
   { method: "POST", pattern: "/trucks/:truck_id/eta", handler: updateTruckEta },
   { method: "POST", pattern: "/trucks/:truck_id/load", handler: loadTruck },
   { method: "POST", pattern: "/zones/:zone/closure", handler: setZoneClosure },
@@ -113,6 +140,8 @@ const routes: Route[] = [
   { method: "POST", pattern: "/assistance/cases", handler: ingestAssistanceCase },
   { method: "POST", pattern: "/assistance/cases/:case_id/decide", handler: decideAssistance },
   { method: "POST", pattern: "/cars/:vin/rework/done", handler: markReworkDone },
+  { method: "POST", pattern: "/batches", handler: createBatch },
+  { method: "POST", pattern: "/batches/:batch_id/cancel", handler: cancelBatch },
   { method: "POST", pattern: "/lab/scenarios", handler: createScenario },
   { method: "POST", pattern: "/lab/scenarios/:scenario_id/review", handler: reviewScenario },
   {
@@ -176,6 +205,7 @@ export async function mockRequest(
     db,
   };
 
+  materializeBatches(req);
   const result = await match.handler(req);
 
   for (const job of db.jobs) materializeJob(db, job);

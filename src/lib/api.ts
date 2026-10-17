@@ -4,6 +4,11 @@ import {
   actorSchema,
   assistanceCaseSchema,
   assistanceKpiSchema,
+  batchAcceptedSchema,
+  batchDetailSchema,
+  batchEventsSchema,
+  batchReportSchema,
+  batchSummarySchema,
   buildSheetMismatchSchema,
   carDetailSchema,
   carSummarySchema,
@@ -17,6 +22,10 @@ import {
   mediaSchema,
   overviewSchema,
   pageSchema,
+  plantAssistSchema,
+  plantRestartSchema,
+  plantSpawnSchema,
+  plantStateSchema,
   proposalSchema,
   readinessSchema,
   releaseSchema,
@@ -38,6 +47,7 @@ const reportsPage = pageSchema(reportSchema);
 const requestsPage = pageSchema(testRequestSchema);
 const scenariosPage = pageSchema(scenarioSchema);
 const releasesPage = pageSchema(releaseSchema);
+const batchesPage = pageSchema(batchSummarySchema);
 
 export interface ListParams {
   page?: number;
@@ -95,6 +105,24 @@ export const resumeCar = (vin: string) =>
     {},
     { schema: z.record(z.string(), z.unknown()) },
   );
+
+/* ------------------------- plant control (demo) --------------------------- */
+
+export const fetchPlantState = () => api.get("/plant/state", { schema: plantStateSchema });
+
+export const spawnPlantCar = () => api.post("/plant/spawn", {}, { schema: plantSpawnSchema });
+
+export const raisePlantException = () =>
+  api.post("/plant/exception", {}, { schema: plantAssistSchema });
+
+export const decidePlantAssist = (caseId: string, option: string) =>
+  api.post(
+    `/plant/assist/${encodeURIComponent(caseId)}/decide`,
+    { option },
+    { schema: plantAssistSchema, idempotencyKey: `plant-assist-${caseId}` },
+  );
+
+export const restartPlant = () => api.post("/plant/restart", {}, { schema: plantRestartSchema });
 
 /* ------------------------------- proposals ------------------------------- */
 
@@ -229,5 +257,34 @@ export const fetchJob = (jobId: string) =>
 export const fetchMedia = (mediaId: string) =>
   // GCS cold fetch can exceed the default 12s timeout on first access.
   api.get(`/media/${encodeURIComponent(mediaId)}`, { schema: mediaSchema, timeoutMs: 30_000 });
+
+/* --------------------------------- batches ------------------------------- */
+
+export const createBatch = (body: { cars: number }) =>
+  api.post("/batches", body, { schema: batchAcceptedSchema });
+
+export const fetchBatches = (params: ListParams = {}) =>
+  api.get("/batches", { query: params, schema: batchesPage });
+
+export const fetchBatch = (batchId: string) =>
+  api.get(`/batches/${encodeURIComponent(batchId)}`, { schema: batchDetailSchema });
+
+export const fetchBatchEvents = (batchId: string, since = 0) =>
+  api.get(`/batches/${encodeURIComponent(batchId)}/events`, {
+    query: { since },
+    schema: batchEventsSchema,
+  });
+
+export const fetchBatchReport = (batchId: string) =>
+  api.get(`/batches/${encodeURIComponent(batchId)}/report`, { schema: batchReportSchema });
+
+export const cancelBatch = (batchId: string) =>
+  api.post(
+    `/batches/${encodeURIComponent(batchId)}/cancel`,
+    {},
+    {
+      schema: z.object({ batch_id: z.string(), status: z.string() }),
+    },
+  );
 
 export { buildSheetMismatchSchema, truckSchema };

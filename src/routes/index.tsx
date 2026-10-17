@@ -1,8 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Camera, CircleAlert, Play } from "lucide-react";
-import type { ReactNode } from "react";
+import { CircleAlert, Play } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { BatchPanel } from "@/components/domain/BatchPanel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { clock, feedRows } from "@/lib/feed-rows";
+import { useEventLogStore } from "@/lib/stores/event-log";
+import { useEventStream } from "@/lib/use-event-stream";
+import { type PlantControls, usePlant } from "@/lib/use-plant";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -56,40 +61,6 @@ const TIMELINE = [
     tags: [{ text: "Rework", tone: "rose" }],
     text: "P017: rear bumper unsecure (0.511). Asking a person.",
   },
-];
-
-const FEED = [
-  { t: "06:39", tag: "Gemini", tone: "blue", text: "P038 assistance: wait 20 s" },
-  { t: "06:39", tag: "Plan", tone: "violet", text: "P038 assigned to C8." },
-  {
-    t: "06:40",
-    tag: "Gemini",
-    tone: "blue",
-    text: "P038 no defect, matches build sheet, lamps lit.",
-  },
-  { t: "06:39", tag: "Plan", tone: "violet", text: "P039 assigned to A9." },
-  {
-    t: "06:37",
-    tag: "Gemini",
-    tone: "blue",
-    text: "P039 no defect, matches build sheet, lamps lit.",
-  },
-  { t: "06:37", tag: "Awaiting", tone: "amber", text: "P038 assigned to C8, needs supervisor." },
-  { t: "06:36", tag: "Plan", tone: "violet", text: "P038 assigned to C7." },
-  {
-    t: "06:36",
-    tag: "Gemini",
-    tone: "blue",
-    text: "P039 no defect, matches build sheet, lamps lit.",
-  },
-  { t: "06:35", tag: "Plan", tone: "violet", text: "P039 assigned to A3." },
-  {
-    t: "06:34",
-    tag: "Gemini",
-    tone: "blue",
-    text: "P038 no defect, matches build sheet, lamps lit.",
-  },
-  { t: "06:34", tag: "Plan", tone: "violet", text: "P039 assigned to A8." },
 ];
 
 const ROWS = ["A", "B", "C", "D", "E", "F", "G", "H"];
@@ -151,11 +122,18 @@ function Chip({ tone = "gray", children }: { tone?: string; children: ReactNode 
 /* -------------------------------- page ----------------------------------- */
 
 function DashboardPage() {
+  useEventStream();
+  const plant = usePlant();
+
   return (
     <div className="min-h-full bg-bg">
       <div className="h-1 w-full bg-yellow-400" />
-      <Header />
+      <Header plant={plant} />
+      <BatchPanel />
       <LatestException />
+      <p className="px-4 pt-3 text-[10px] font-semibold uppercase tracking-wide text-fg-subtle">
+        Sample dashboard data
+      </p>
       <Stats />
       <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-4">
@@ -164,7 +142,7 @@ function DashboardPage() {
           <CarDetail />
         </div>
         <div className="space-y-4">
-          <WaitingOnYou />
+          <WaitingOnYou plant={plant} />
           <DecisionFeed />
         </div>
       </div>
@@ -173,26 +151,57 @@ function DashboardPage() {
   );
 }
 
-function Header() {
+function Header({ plant }: { plant: PlantControls }) {
+  const busy = plant.spawn.isPending || plant.exception.isPending || plant.restart.isPending;
+  const disabled = busy || !plant.running;
+
   return (
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-surface px-4 py-2">
       <div className="flex items-baseline gap-3">
         <span className="text-lg font-semibold tracking-tight text-fg">Marshal</span>
         <span className="text-xs text-fg-muted">Plant supervisor · Shift A · 06:00 to 08:10</span>
       </div>
-      <span className="rounded border border-yellow-400 bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-yellow-800">
-        Backup · Simulated shift
+      <span
+        className={cn(
+          "rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+          plant.running
+            ? "border-green-400 bg-green-50 text-green-800"
+            : "border-yellow-400 bg-yellow-100 text-yellow-800",
+        )}
+      >
+        {plant.running ? "Live · demo plant" : "Plant not running"}
       </span>
       <div className="ml-auto flex items-center gap-3">
         <span className="font-mono text-2xl font-semibold tabular-nums text-fg">06:39</span>
-        <Button size="sm">
+        <Button size="sm" disabled={disabled} onClick={() => plant.spawn.mutate()}>
           <Play className="size-3.5" />
           Play shift
         </Button>
-        <Button size="sm" variant="secondary">
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            const input = document.getElementById("batch-cars");
+            input?.scrollIntoView({ behavior: "smooth", block: "center" });
+            input?.focus();
+          }}
+        >
+          Run batch
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={disabled}
+          onClick={() => plant.exception.mutate()}
+        >
           Next exception
         </Button>
-        <Button size="sm" variant="secondary">
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={disabled}
+          onClick={() => plant.restart.mutate()}
+        >
           Restart
         </Button>
         <label className="flex items-center gap-1.5 text-xs text-fg-muted">
@@ -205,13 +214,20 @@ function Header() {
 }
 
 function LatestException() {
+  const events = useEventLogStore((s) => s.events);
+  const latest = events.filter((e) => e.level === "warn" || e.level === "bad").at(-1);
+
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-1.5 text-xs">
       <span className="text-[10px] font-semibold uppercase tracking-wide text-orange-600">
         Latest exception
       </span>
-      <span className="font-mono text-fg-subtle">06:39</span>
-      <span className="text-fg">P038 assistance: wait 20 s (0.82). A reroute adds about 90 s.</span>
+      <span className="font-mono text-fg-subtle">{latest ? clock(latest.at) : "—"}</span>
+      <span className="text-fg">
+        {latest
+          ? `${latest.title}${latest.detail ? ` — ${latest.detail}` : ""}`
+          : "No exceptions this shift."}
+      </span>
     </div>
   );
 }
@@ -342,88 +358,146 @@ function CarDetail() {
   );
 }
 
-function WaitingOnYou() {
+function WaitingOnYou({ plant }: { plant: PlantControls }) {
+  const assist = plant.state?.assist ?? null;
+  const busy = plant.decide.isPending;
+
   return (
     <Card>
       <div className="p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-fg">Waiting on you</h2>
-          <span className="flex size-6 items-center justify-center rounded-full bg-yellow-100 text-xs font-semibold text-yellow-800">
-            2
+          <span
+            className={cn(
+              "flex size-6 items-center justify-center rounded-full text-xs font-semibold",
+              assist ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800",
+            )}
+          >
+            {assist ? 1 : 0}
           </span>
         </div>
 
-        <div className="mt-3 rounded-md border border-border p-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-fg">Assistance · P038</span>
-            <Chip tone="rose">Car stopped</Chip>
-          </div>
-
-          <div className="relative mt-2 aspect-video w-full overflow-hidden rounded border border-border bg-surface-2">
-            <span className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[9px] text-white">
-              REC
-            </span>
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-fg-subtle">
-              <Camera className="size-4" />
-              <span className="font-mono text-[10px]">CAM-LINE-04 · LANE B</span>
-            </div>
-          </div>
-
-          <p className="mt-3 text-xs leading-relaxed text-fg-muted">
-            P038 stopped behind a forklift in lane B. Gemini sees options B, C and is recommending
-            A. A reroute adds about 90 s. Other cars use lane B.
+        {!assist && (
+          <p className="mt-3 rounded-md border border-border p-3 text-xs leading-relaxed text-fg-muted">
+            {plant.running
+              ? "No exception. The plant is running; a car will stop and ask when it needs you."
+              : "The plant is not running. Start the API with MARSHAL_RUN_PLANT=1."}
           </p>
+        )}
 
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <Button variant="secondary" className="h-auto flex-col gap-0 py-2">
-              <span className="text-xs font-semibold">Wait 20 s</span>
-              <span className="text-[9px] font-normal text-fg-subtle">Recommended · 0.82</span>
-            </Button>
-            <Button variant="secondary" className="h-auto flex-col gap-0 py-2">
-              <span className="text-xs font-semibold">Reroute +90 s</span>
-              <span className="text-[9px] font-normal text-fg-subtle">adds ~1.5 min</span>
-            </Button>
+        {assist && (
+          <div className="mt-3 rounded-md border border-border p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-fg">Assistance · {assist.vin}</span>
+              <Chip tone="rose">Car stopped</Chip>
+            </div>
+
+            <p className="mt-3 text-xs leading-relaxed text-fg-muted">
+              {assist.situation || `${assist.vin} stopped and asks for help.`}
+              {assist.location ? ` (at ${assist.location})` : ""}
+            </p>
+
+            <div className="mt-3 space-y-2">
+              {assist.options.map((o) => (
+                <Button
+                  key={o.id}
+                  variant="secondary"
+                  className="h-auto w-full flex-col gap-0 py-2"
+                  disabled={busy}
+                  onClick={() => plant.decide.mutate({ caseId: assist.case_id, option: o.id })}
+                >
+                  <span className="text-xs font-semibold">{o.id.replaceAll("_", " ")}</span>
+                  <span className="text-[9px] font-normal text-fg-subtle">
+                    {o.id === assist.recommended
+                      ? `Recommended${assist.confidence != null ? ` · ${assist.confidence.toFixed(2)}` : ""}`
+                      : (o.reason ?? o.risk ?? "")}
+                  </span>
+                </Button>
+              ))}
+            </div>
+            {plant.decide.isError && (
+              <p className="mt-2 text-[10px] text-red-600">
+                That decision was not accepted; try again.
+              </p>
+            )}
           </div>
-
-          <Button variant="secondary" className="mt-2 h-auto w-full flex-col gap-0 py-2">
-            <span className="text-xs font-semibold">Stop, call a driver</span>
-            <span className="text-[9px] font-normal text-fg-subtle">for faults</span>
-          </Button>
-        </div>
+        )}
       </div>
     </Card>
   );
 }
 
 function DecisionFeed() {
+  const events = useEventLogStore((s) => s.events);
+  const [onlyExceptions, setOnlyExceptions] = useState(false);
+  const rows = feedRows(events, 14, onlyExceptions);
+
   return (
     <Card>
       <div className="p-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-fg">Decision feed</h2>
           <div className="flex items-center gap-1 text-[10px]">
-            <span className="rounded-full bg-fg px-2 py-0.5 font-medium text-surface">
+            <button
+              type="button"
+              onClick={() => setOnlyExceptions(false)}
+              className={cn(
+                "rounded-full px-2 py-0.5",
+                !onlyExceptions
+                  ? "bg-fg font-medium text-surface"
+                  : "border border-border text-fg-muted",
+              )}
+            >
               Everything
-            </span>
-            <span className="rounded-full border border-border px-2 py-0.5 text-fg-muted">
+            </button>
+            <button
+              type="button"
+              onClick={() => setOnlyExceptions(true)}
+              className={cn(
+                "rounded-full px-2 py-0.5",
+                onlyExceptions
+                  ? "bg-fg font-medium text-surface"
+                  : "border border-border text-fg-muted",
+              )}
+            >
               Exceptions only
-            </span>
+            </button>
           </div>
         </div>
 
         <div className="relative mt-3">
           <CircleAlert className="absolute right-1 top-1 size-3.5 text-orange-500" aria-hidden />
           <div className="max-h-[440px] space-y-2 overflow-y-auto pr-4">
-            {FEED.map((row, i) => (
+            {rows.length === 0 && (
+              <p className="border-t border-border pt-2 text-xs text-fg-subtle">
+                {onlyExceptions ? "No exceptions right now." : "Waiting for the decision stream…"}
+              </p>
+            )}
+            {rows.map((row) => (
               <div
-                key={`${row.t}-${i}`}
+                key={row.key}
+                data-testid="feed-row"
                 className="flex items-start gap-2 border-t border-border pt-2 text-xs"
               >
                 <span className="w-9 shrink-0 font-mono text-[10px] text-fg-subtle">{row.t}</span>
                 <span className="shrink-0">
                   <Chip tone={row.tone}>{row.tag}</Chip>
                 </span>
-                <span className="text-fg-muted">{row.text}</span>
+                <div className="min-w-0">
+                  <span className="text-fg-muted">{row.text}</span>
+                  {row.probs.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {row.probs.map(([label, p]) => (
+                        <span
+                          key={label}
+                          className="rounded border border-border bg-surface-2 px-1 py-0.5 font-mono text-[9px] tabular-nums text-fg-muted"
+                        >
+                          {label} {p.toFixed(2)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -436,10 +510,8 @@ function DecisionFeed() {
 function Footer() {
   return (
     <footer className="max-w-4xl px-4 pb-8 pt-2 text-[11px] leading-relaxed text-fg-subtle">
-      Mockup of the supervisor screen for the demo. The shift, cars, confidence and lane rate are
-      sample values. Measured in our evals: gate median 4.9 s a car; lamp check 1.2 s; Gemini 2.5
-      Flash on Vertex AI in asia-northeast1, so one line can keep up with a lane of cars a minute.
-      The working dashboard is being built in the web app.
+      The shift, yard and truck values above are sample dashboard data. Batch status and reports are
+      loaded from the batch API when CARLA batch mode is enabled.
     </footer>
   );
 }

@@ -13,7 +13,8 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "bun run dev",
+    // E2E always runs against the mock transport, whatever the local .env.development says.
+    command: "VITE_MOCK_MODE=true bun run dev",
     url: "http://localhost:5173",
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
