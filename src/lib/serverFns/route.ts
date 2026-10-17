@@ -36,7 +36,11 @@ export const chooseRouteHazard = createServerFn({ method: 'POST', strict: false 
   .handler(async ({ data }): Promise<RouteChoice> => {
     try {
       const { runGemini } = await import('./gemini')
-      return await runGemini('chooseRouteHazard', () => offlineRoute(data), () => online(data))
+      return await runGemini(
+        'chooseRouteHazard',
+        () => offlineRoute(data),
+        () => online(data),
+      )
     } catch {
       return offlineRoute(data)
     }

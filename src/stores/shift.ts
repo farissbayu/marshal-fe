@@ -6,12 +6,7 @@
 import { create } from 'zustand'
 import type { TruthHintPort } from '#/lib/marshal/flows/context'
 import type { YardConstraints } from '#/lib/marshal/flows/yard'
-import {
-  clearHazard,
-  type HazardPreset,
-  type HazardSite,
-  stageHazard,
-} from '#/lib/marshal/hazards'
+import { clearHazard, type HazardPreset, type HazardSite, stageHazard } from '#/lib/marshal/hazards'
 import { type CarSpec, createOrchestrator, type Orchestrator } from '#/lib/marshal/orchestrator'
 import { createInitialState, type MarshalState, type Truck } from '#/lib/marshal/state'
 import { type LampFault, ScriptedDrivingSystem } from '#/lib/marshal/testing/scriptedSystem'

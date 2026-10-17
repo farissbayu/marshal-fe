@@ -90,7 +90,13 @@ describe('runGemini', () => {
 
   it('uses the online answer when configured and falls back when it throws', async () => {
     vi.stubEnv('GOOGLE_GENAI_API_KEY', 'test-key')
-    expect(await runGemini('t', () => 'offline', async () => 'online')).toBe('online')
+    expect(
+      await runGemini(
+        't',
+        () => 'offline',
+        async () => 'online',
+      ),
+    ).toBe('online')
     const failing = async (): Promise<string> => {
       throw new Error('quota')
     }

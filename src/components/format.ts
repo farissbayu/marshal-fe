@@ -1,6 +1,6 @@
 // Small formatting helpers shared by the shift dashboard components.
 
-import type { CarState, CarStage } from '#/lib/marshal/state'
+import type { CarStage, CarState } from '#/lib/marshal/state'
 import type { AssistOption } from '#/lib/marshal/types'
 
 /** Shift start as seconds after midnight (06:00, as in Main.dc.html). */

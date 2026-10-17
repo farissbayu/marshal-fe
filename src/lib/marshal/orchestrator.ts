@@ -4,7 +4,7 @@
 // via server functions) and the bus. No three.js, no React, no AI SDK, no fetch.
 
 import type { MarshalAi } from '../serverFns/client'
-import { bus as sharedBus, type EventBus, type MarshalEventMap } from './eventBus'
+import { type EventBus, type MarshalEventMap, bus as sharedBus } from './eventBus'
 import { autoChooseOpen, chooseAssist, handleAssistRequest } from './flows/assist'
 import type { FlowContext, MissionPurpose, MissionRecord, TruthHintPort } from './flows/context'
 import { handleGateArrival } from './flows/gate'

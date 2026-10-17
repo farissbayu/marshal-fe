@@ -38,7 +38,11 @@ export const analyzeAssistClip = createServerFn({ method: 'POST', strict: false 
   .handler(async ({ data }): Promise<AssistAnalysis> => {
     try {
       const { runGemini } = await import('./gemini')
-      return await runGemini('analyzeAssistClip', () => offlineAssist(data), () => online(data))
+      return await runGemini(
+        'analyzeAssistClip',
+        () => offlineAssist(data),
+        () => online(data),
+      )
     } catch {
       return offlineAssist(data)
     }

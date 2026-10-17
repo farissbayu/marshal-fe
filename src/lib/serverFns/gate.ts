@@ -36,7 +36,11 @@ export const evaluateGatePhotos = createServerFn({ method: 'POST', strict: false
   .handler(async ({ data }): Promise<GateResult> => {
     try {
       const { runGemini } = await import('./gemini')
-      return await runGemini('evaluateGatePhotos', () => offlineGate(data), () => online(data))
+      return await runGemini(
+        'evaluateGatePhotos',
+        () => offlineGate(data),
+        () => online(data),
+      )
     } catch {
       return offlineGate(data)
     }

@@ -238,9 +238,7 @@ describe('route', () => {
     expect(offlineRoute(route('forklift at corner', ['finishing_corner', 'lane_c'])).route).toBe(
       'lane_c',
     )
-    expect(offlineRoute(route('  ', ['finishing_corner', 'lane_c'])).route).toBe(
-      'finishing_corner',
-    )
+    expect(offlineRoute(route('  ', ['finishing_corner', 'lane_c'])).route).toBe('finishing_corner')
     expect(offlineRoute(route('forklift', ['finishing_corner']))).toMatchObject({
       route: 'finishing_corner',
       degraded: true,

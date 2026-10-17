@@ -34,7 +34,11 @@ export const evaluateLampEvidence = createServerFn({ method: 'POST', strict: fal
   .handler(async ({ data }): Promise<LampResult> => {
     try {
       const { runGemini } = await import('./gemini')
-      return await runGemini('evaluateLampEvidence', () => offlineLamp(data), () => online(data))
+      return await runGemini(
+        'evaluateLampEvidence',
+        () => offlineLamp(data),
+        () => online(data),
+      )
     } catch {
       return offlineLamp(data)
     }

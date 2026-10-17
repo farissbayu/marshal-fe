@@ -36,7 +36,11 @@ export const replanYardSlots = createServerFn({ method: 'POST', strict: false })
   .handler(async ({ data }): Promise<YardReplan> => {
     try {
       const { runGemini } = await import('./gemini')
-      return await runGemini('replanYardSlots', () => offlineYard(data), () => online(data))
+      return await runGemini(
+        'replanYardSlots',
+        () => offlineYard(data),
+        () => online(data),
+      )
     } catch {
       return offlineYard(data)
     }
