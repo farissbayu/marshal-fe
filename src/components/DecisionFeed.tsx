@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FeedEntry } from '#/lib/marshal/state'
-import { formatClock } from './format'
+import { formatClock, offlineLabel } from './format'
 
 /** Newest entries kept on screen. */
 export const FEED_LIMIT = 200
@@ -59,7 +59,7 @@ export function DecisionFeed({ feed, exceptionsOnly = false }: DecisionFeedProps
               <span>
                 {entry.vin ? `${entry.vin}: ` : ''}
                 {entry.text}
-                {entry.degraded ? <span className="md-offline"> (offline)</span> : null}
+                {entry.degraded ? <span className="md-offline"> {offlineLabel(entry)}</span> : null}
               </span>
             </li>
           ))

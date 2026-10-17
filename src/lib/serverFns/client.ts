@@ -2,13 +2,20 @@
 // imports, same pattern as src/ai/client.ts) and falls back to the deterministic offline answer
 // when a call throws, so every method always resolves. Never reads env, never imports SDKs.
 
-import type {
-  AssistInput,
-  GateInput,
-  LampInput,
-  ParkingInput,
-  RouteInput,
-  YardInput,
+import { z } from 'zod'
+import {
+  type AssistInput,
+  assistInputSchema,
+  type GateInput,
+  gateInputSchema,
+  type LampInput,
+  lampInputSchema,
+  type ParkingInput,
+  parkingInputSchema,
+  type RouteInput,
+  routeInputSchema,
+  type YardInput,
+  yardInputSchema,
 } from '#/lib/marshal/schemas'
 import type {
   AssistAnalysis,
@@ -70,16 +77,29 @@ const remote: MarshalAi = {
   },
 }
 
-function guard<I, O>(
+function isValidationError(error: unknown): boolean {
+  return error instanceof z.ZodError || (error instanceof Error && error.name === 'ZodError')
+}
+
+function guard<I, O extends { degraded: boolean; invalidInput?: boolean }>(
   name: string,
+  schema: z.ZodType<I>,
   call: (input: I) => Promise<O>,
   offline: (input: I) => O,
 ): (input: I) => Promise<O> {
+  const rejected = (input: I, why: string): O => {
+    console.warn(`[marshalAi:${name}] input rejected by schema, answering offline:`, why)
+    return { ...offline(input), degraded: true, invalidInput: true }
+  }
   return async (input) => {
+    // Checked here too, so an over-limit request is reported as such instead of as "AI down".
+    const parsed = schema.safeParse(input)
+    if (!parsed.success) return rejected(input, parsed.error.message)
     try {
       return await call(input)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      if (isValidationError(error)) return rejected(input, message)
       console.warn(`[marshalAi:${name}] falling back to offline:`, message)
       return offline(input)
     }
@@ -90,37 +110,44 @@ function guard<I, O>(
  * Creates the Marshal AI client.
  * @param send - Optional per-method implementations (tests inject these instead of RPC).
  * @returns A {@link MarshalAi} whose methods never reject: on any error they return the
- * deterministic offline answer (`degraded: true`).
+ * deterministic offline answer (`degraded: true`). Inputs that fail the server function schema
+ * are not sent; they are answered offline with `invalidInput: true`.
  */
 export function createMarshalAi(send: Partial<MarshalAi> = {}): MarshalAi {
   return {
     evaluateGatePhotos: guard(
       'evaluateGatePhotos',
+      gateInputSchema,
       send.evaluateGatePhotos ?? remote.evaluateGatePhotos,
       offlineGate,
     ),
     evaluateLampEvidence: guard(
       'evaluateLampEvidence',
+      lampInputSchema,
       send.evaluateLampEvidence ?? remote.evaluateLampEvidence,
       offlineLamp,
     ),
     analyzeAssistClip: guard(
       'analyzeAssistClip',
+      assistInputSchema,
       send.analyzeAssistClip ?? remote.analyzeAssistClip,
       offlineAssist,
     ),
     planParkingStep: guard(
       'planParkingStep',
+      parkingInputSchema,
       send.planParkingStep ?? remote.planParkingStep,
       (input) => offlineParking(input),
     ),
     chooseRouteHazard: guard(
       'chooseRouteHazard',
+      routeInputSchema,
       send.chooseRouteHazard ?? remote.chooseRouteHazard,
       offlineRoute,
     ),
     replanYardSlots: guard(
       'replanYardSlots',
+      yardInputSchema,
       send.replanYardSlots ?? remote.replanYardSlots,
       offlineYard,
     ),

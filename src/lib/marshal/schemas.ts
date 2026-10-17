@@ -37,12 +37,20 @@ export const assistOptionSchema = z.enum(['wait_for_removal', 'pass_left_3kmh', 
 export const routeOptionSchema = z.enum(['finishing_corner', 'lane_c'])
 export const gateViewSchema = z.enum(['front', 'rear', 'left', 'right'])
 
-export const gateFramesSchema = z.object({
-  front: frame(),
-  rear: frame(),
-  left: frame(),
-  right: frame(),
-})
+/**
+ * Gate photos by view. A view may be missing when its frame was too large to send (the flow
+ * drops it client-side); at least one view is required.
+ */
+export const gateFramesSchema = z
+  .object({
+    front: frame().optional(),
+    rear: frame().optional(),
+    left: frame().optional(),
+    right: frame().optional(),
+  })
+  .refine((value) => Object.values(value).some((item) => item !== undefined), {
+    message: 'at least one gate view',
+  })
 
 export const poseSchema = z.object({ x: z.number(), y: z.number(), yaw: z.number() })
 

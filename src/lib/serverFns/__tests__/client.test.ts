@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { POINTS } from '#/lib/marshal/points'
-import type { GateInput, RouteInput } from '#/lib/marshal/schemas'
+import { type GateInput, gateInputSchema, MAX_FRAMES, type RouteInput } from '#/lib/marshal/schemas'
 import type { RouteChoice } from '#/lib/marshal/types'
 import { createMarshalAi } from '../client'
 import {
@@ -78,7 +78,39 @@ describe('createMarshalAi', () => {
 
     const gate = await ai.evaluateGatePhotos(gateInput)
     expect(gate).toMatchObject({ pass: false, degraded: true })
+    expect(gate.invalidInput).toBeUndefined()
     expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it('answers offline with invalidInput, unsent, when the input fails the schema', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const evaluateLampEvidence = vi.fn(fail)
+    const ai = createMarshalAi({ evaluateLampEvidence })
+    const lampInput = {
+      vin: 'V',
+      step: 'headlights',
+      telemetry: { headlights: 'ON' },
+      frames: Array.from({ length: MAX_FRAMES + 1 }, () => 'AAAA'),
+      hint: 'headlights=off',
+    }
+    const result = await ai.evaluateLampEvidence(lampInput)
+    expect(result).toEqual({ ...offlineLamp(lampInput), invalidInput: true })
+    expect(evaluateLampEvidence).not.toHaveBeenCalled()
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/input rejected by schema/)
+    warn.mockRestore()
+  })
+
+  it('flags invalidInput when the server function throws a validation error', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const zodError = gateInputSchema.safeParse({}).error
+    const ai = createMarshalAi({
+      evaluateGatePhotos: async () => {
+        throw zodError
+      },
+    })
+    const result = await ai.evaluateGatePhotos(gateInput)
+    expect(result).toEqual({ ...offlineGate(gateInput), invalidInput: true })
     warn.mockRestore()
   })
 })

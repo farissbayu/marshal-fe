@@ -15,6 +15,8 @@ export function truckStatus(truck: Truck): string {
       return `Loading ${cars}`
     case 'waiting':
       return 'Here early · waiting'
+    case 'late':
+      return 'Running late'
     case 'left':
       return `Left · ${cars}`
     default:

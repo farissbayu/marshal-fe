@@ -6,6 +6,8 @@ import {
   colourToRgb,
   createInitialState,
   firstFreeSimSlot,
+  freeSimSlots,
+  heldAtReport,
   pointToSlot,
   rgbToColourName,
   setSlot,
@@ -97,7 +99,7 @@ describe('state', () => {
   })
 
   it('counts held cars and unverified inspections as finished', () => {
-    let state = addCar(createInitialState(), { ...car, stage: 'report', held: 'yard full' })
+    let state = addCar(createInitialState(), { ...car, stage: 'held', held: 'yard full' })
     state = addCar(state, { ...car, vin: 'VIN-2', stage: 'rework', reworkReason: 'inspection' })
     state = addCar(state, { ...car, vin: 'VIN-3', stage: 'rework', reworkReason: 'lamp' })
     expect(state.progress).toBeCloseTo(2 / 3)
@@ -109,5 +111,13 @@ describe('state', () => {
     state = addCar(state, { ...car, vin: 'VIN-2', stage: 'parking', slot: 'A4' })
     state = addCar(state, { ...car, vin: 'VIN-3', stage: 'to_slot', slot: 'A2' })
     expect(assignedSlots(state)).toEqual(['A2', 'A4'])
+  })
+
+  it('finds cars held at the report point and marks a held car slot as alert', () => {
+    let state = addCar(createInitialState(), { ...car, stage: 'held', held: 'yard full' })
+    state = addCar(state, { ...car, vin: 'VIN-2', stage: 'held', held: 'abandoned', slot: 'A3' })
+    expect(heldAtReport(state)).toEqual(['VIN-1'])
+    expect(yardCells(state).A3).toBe('alert')
+    expect(freeSimSlots(state)).toEqual(['A1', 'A2', 'A4', 'A5', 'A6', 'A7', 'A8'])
   })
 })

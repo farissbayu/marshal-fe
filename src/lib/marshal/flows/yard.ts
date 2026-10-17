@@ -161,11 +161,13 @@ export async function requestYardReplan(
     ctx.decide(move.vin, 'YARD', `Rejected move ${move.from} -> ${move.to}: ${reason}`, {
       exception: true,
       degraded: replan.degraded,
+      invalidInput: replan.invalidInput,
     })
   }
   for (const move of order.ordered) {
     ctx.decide(move.vin, 'YARD', `Re-plan ${move.from} -> ${move.to}: ${replan.reason}`, {
       degraded: replan.degraded,
+      invalidInput: replan.invalidInput,
     })
   }
 
@@ -199,6 +201,8 @@ export function dispatchNext(ctx: FlowContext): void {
 
   const point = slotToPoint(move.to)
   if (!point || !ctx.state().cars[move.vin]) {
+    // The sim only has row A: a car the crew moves elsewhere leaves the sim, freeing its slot.
+    if (!point && ctx.state().cars[move.vin]) ctx.ds.despawn(move.vin)
     applyMove(ctx, move, 'moved by the yard crew')
     dispatchNext(ctx)
     return

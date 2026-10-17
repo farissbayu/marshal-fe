@@ -105,6 +105,8 @@ describe('shift dashboard components', () => {
       car('P004', 'rework'),
       car('P005', 'parked', { slot: 'A1' }),
       car('P006', 'test_track'),
+      car('P007', 'held', { slot: 'A4', held: 'Parking Y4 abandoned after 2 attempts' }),
+      car('P008', 'held', { held: 'No free yard slot' }),
     ]
     render(<GateLanes cars={cars} selected="P002" onSelect={onSelect} />)
     const group = (name: string) => screen.getByRole('region', { name })
@@ -114,7 +116,13 @@ describe('shift dashboard components', () => {
         .map((button) => button.textContent)
     expect(vins('At the gate')).toEqual(['P001', 'P006'])
     expect(vins('Driving to a slot')).toEqual(['P002'])
+    // Held cars (parking abandoned, yard full) are the yard crew's, not "Waiting on you".
     expect(vins('Waiting on you')).toEqual(['P003'])
+    expect(vins('Held for the yard crew')).toEqual(['P007', 'P008'])
+    expect(screen.getByRole('button', { name: 'P007, Held for the yard crew' })).toHaveClass(
+      'chip',
+      'held',
+    )
     expect(vins('Rework bay')).toEqual(['P004'])
     expect(screen.queryByRole('button', { name: /P005/ })).toBeNull()
 
@@ -168,6 +176,7 @@ describe('shift dashboard components', () => {
       { id: 'T-2', state: 'loading', slots: ['A1', 'A2'] },
       { id: 'T-3', state: 'waiting', slots: [] },
       { id: 'T-4', state: 'left', slots: ['A3'] },
+      { id: 'T-5', state: 'late', slots: ['A5'] },
     ]
     render(<Dock trucks={trucks} />)
     const card = (id: string) => screen.getByText(id).parentElement as HTMLElement
@@ -177,6 +186,9 @@ describe('shift dashboard components', () => {
     expect(card('T-3')).toHaveClass('truck', 'waiting')
     expect(card('T-4')).toHaveClass('truck', 'left')
     expect(within(card('T-4')).getByText('Left · 1 car')).toBeInTheDocument()
+    expect(within(card('T-3')).getByText('Here early · waiting')).toBeInTheDocument()
+    expect(card('T-5')).toHaveClass('truck', 'late')
+    expect(within(card('T-5')).getByText('Running late')).toBeInTheDocument()
   })
 
   it('CarDetail shows where the car is and tagged decisions, newest first', () => {
@@ -271,6 +283,25 @@ describe('shift dashboard components', () => {
     expect(items).toHaveLength(1)
     expect(items[0]).toHaveTextContent('P002: Stopped: box')
     expect(items[0].querySelector('.tag')).toHaveClass('tag', 'PLANT')
+  })
+
+  it('DecisionFeed tells a rejected input apart from AI unavailable', () => {
+    const feed: FeedEntry[] = [
+      { vin: 'P001', at: 1, tag: 'GEMINI', text: 'Gate PASS', exception: false, degraded: true },
+      {
+        vin: 'P002',
+        at: 2,
+        tag: 'GEMINI',
+        text: 'Gate FAIL',
+        exception: true,
+        degraded: true,
+        invalidInput: true,
+      },
+    ]
+    render(<DecisionFeed feed={feed} />)
+    const [rejected, offline] = screen.getAllByRole('listitem')
+    expect(within(rejected).getByText('(offline: input rejected)')).toHaveClass('md-offline')
+    expect(within(offline).getByText('(offline)')).toHaveClass('md-offline')
   })
 
   it('Header shows the clock and wires the buttons and the pause toggle', () => {
@@ -403,7 +434,7 @@ describe('Dashboard with the shift store', () => {
     const texts = shift.feed.map((entry) => entry.text)
     expect(texts.some((text) => text.startsWith('Route via lane_c'))).toBe(true)
     expect(texts.some((text) => text.startsWith('Re-plan A7 -> '))).toBe(true)
-    expect(shift.trucks.find((truck) => truck.id === 'T-1')?.state).toBe('waiting')
+    expect(shift.trucks.find((truck) => truck.id === 'T-1')?.state).toBe('late')
     expect(shift.layout.A7).toBeNull()
     expect(shift.hazard).toBeNull()
     store().setPauseWhenNeeded(true)

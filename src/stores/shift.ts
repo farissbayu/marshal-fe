@@ -65,7 +65,7 @@ export type ShiftHazard = {
 export type ShiftLateTruck = {
   /** Sim second the truck is reported late. */
   at: number
-  /** Dock truck id; its state becomes 'waiting'. */
+  /** Dock truck id; its state becomes 'late'. */
   truck: string
   constraints: YardConstraints
 }
@@ -352,7 +352,7 @@ function runLateTrucks(now: number): void {
     if (fired.has(key) || now < late.at) continue
     fired.add(key)
     orch
-      .applyYardReplan(late.constraints, { truck: { id: late.truck, state: 'waiting' } })
+      .applyYardReplan(late.constraints, { truck: { id: late.truck, state: 'late' } })
       .catch((error: unknown) => console.error('[shift] yard re-plan failed:', error))
   }
 }

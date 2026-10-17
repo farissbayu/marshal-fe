@@ -379,6 +379,12 @@
   animation: md-pulse 1.2s infinite;
 }
 
+.marshal-dash .chip.held {
+  background: transparent;
+  border-color: var(--md-rework);
+  color: var(--md-text);
+}
+
 .marshal-dash .chip.rework {
   background: var(--md-rework);
   color: #ffffff;
@@ -547,6 +553,12 @@
   animation: md-pulse 1.2s infinite;
 }
 
+.marshal-dash .truck.late {
+  background: #3a2a10;
+  border-color: var(--md-accent);
+  border-style: dashed;
+}
+
 .marshal-dash .truck.left {
   opacity: 0.55;
 }
@@ -558,6 +570,10 @@
 .md-truck-status {
   font-size: 13px;
   color: #c9ced6;
+}
+
+.marshal-dash .truck.late .md-truck-status {
+  color: var(--md-gold);
 }
 
 /* Car detail (M8.7) and decision feed (M8.9) */

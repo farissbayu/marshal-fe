@@ -4,7 +4,11 @@
 
 import type { AssistAnalysis, AssistOption } from './types'
 
-/** Where a car is in the shift (drives the dashboard lanes). */
+/**
+ * Where a car is in the shift (drives the dashboard lanes). 'waiting' means an assist case is
+ * open for the car; 'held' means automation gave up (full yard, parking abandoned) and the yard
+ * crew takes over, with nothing for the supervisor to decide.
+ */
 export type CarStage =
   | 'queued'
   | 'to_gate'
@@ -16,6 +20,7 @@ export type CarStage =
   | 'parked'
   | 'rework'
   | 'waiting'
+  | 'held'
   | 'shipped'
 
 /** Who made a decision (dashboard `.tag.*` classes). */
@@ -31,6 +36,8 @@ export type Decision = {
   exception: boolean
   /** True when the answer came from the offline fallback. */
   degraded?: boolean
+  /** True when the AI input failed schema validation (answered offline, not sent). */
+  invalidInput?: boolean
 }
 
 /** A decision in the global feed. */
@@ -62,7 +69,8 @@ export type CarState = {
   preParked?: boolean
   /**
    * Why the car is held with nothing left to automate (full yard, parking abandoned). A held
-   * car counts as finished for shift progress; the yard crew takes over.
+   * car counts as finished for shift progress; the yard crew takes over. Set together with the
+   * 'held' stage; a car held at the report point (no slot) is offered a slot again when one frees.
    */
   held?: string
 }
@@ -83,10 +91,10 @@ export type AssistCase = {
   opened_at: number
 }
 
-/** A dock truck. */
+/** A dock truck ('waiting' = here early, 'late' = running late). */
 export type Truck = {
   id: string
-  state: 'truck' | 'loading' | 'waiting' | 'left'
+  state: 'truck' | 'loading' | 'waiting' | 'late' | 'left'
   /** Yard slot ids loaded onto this truck. */
   slots: string[]
 }
@@ -213,7 +221,7 @@ export function pointToSlot(point: string): string | undefined {
   return match ? `A${match[1]}` : undefined
 }
 
-const DONE_STAGES: ReadonlySet<CarStage> = new Set(['parked', 'shipped'])
+const DONE_STAGES: ReadonlySet<CarStage> = new Set(['parked', 'held', 'shipped'])
 
 function carDone(car: CarState): boolean {
   if (DONE_STAGES.has(car.stage) || car.held !== undefined) return true
@@ -361,6 +369,19 @@ export function assignedSlots(state: MarshalState): string[] {
 }
 
 /**
+ * Free row-A slots (the ones the simulator can drive to) that are neither reserved nor assigned.
+ * @param state - Current state.
+ * @returns Slot ids, A1 first.
+ */
+export function freeSimSlots(state: MarshalState): string[] {
+  const taken = new Set(Object.values(state.cars).flatMap((car) => (car.slot ? [car.slot] : [])))
+  const reserved = new Set(state.reserved)
+  return Array.from({ length: 8 }, (_, index) => `A${index + 1}`).filter(
+    (slot) => state.layout[slot] === null && !taken.has(slot) && !reserved.has(slot),
+  )
+}
+
+/**
  * Free row-A slot (the ones the simulator can drive to) that is neither reserved nor assigned
  * to another car. Row-A slots sit nose to tail with almost no fore/aft slack, so a slot whose
  * neighbours are both empty is preferred, then one with a single occupied neighbour, then any.
@@ -368,16 +389,15 @@ export function assignedSlots(state: MarshalState): string[] {
  * @returns Slot id, or undefined when the sim yard is full.
  */
 export function firstFreeSimSlot(state: MarshalState): string | undefined {
+  const free = freeSimSlots(state)
   const taken = new Set(Object.values(state.cars).flatMap((car) => (car.slot ? [car.slot] : [])))
-  const reserved = new Set(state.reserved)
   const occupied = (col: number) => {
     const slot = `A${col}`
     return (state.layout[slot] ?? null) !== null || taken.has(slot)
   }
   let best: { slot: string; neighbours: number } | undefined
-  for (let col = 1; col <= 8; col++) {
-    const slot = `A${col}`
-    if (state.layout[slot] !== null || taken.has(slot) || reserved.has(slot)) continue
+  for (const slot of free) {
+    const col = Number(slot.slice(1))
     const neighbours = Number(occupied(col - 1)) + Number(occupied(col + 1))
     if (!best || neighbours < best.neighbours) best = { slot, neighbours }
     if (neighbours === 0) break
@@ -386,9 +406,22 @@ export function firstFreeSimSlot(state: MarshalState): string | undefined {
 }
 
 /**
+ * Cars held at the report point because the yard was full (held, no slot assigned).
+ * @param state - Current state.
+ * @returns VINs in spawn order.
+ */
+export function heldAtReport(state: MarshalState): string[] {
+  return state.order.filter((vin) => {
+    const car = state.cars[vin]
+    return car?.stage === 'held' && car.slot === undefined
+  })
+}
+
+/**
  * Dashboard cell state per yard slot.
  * @param state - Current state.
- * @returns Slot id -> cell state ('alert' for a car waiting on you, 'res' for en route,
+ * @returns Slot id -> cell state ('alert' for a car waiting on you or held for the yard crew,
+ * 'res' for en route,
  * 'fresh' for parked within {@link FRESH_SECONDS}, 'parked', else 'empty').
  */
 export function yardCells(state: MarshalState): Record<string, YardCellState> {
@@ -402,7 +435,7 @@ export function yardCells(state: MarshalState): Record<string, YardCellState> {
   }
   for (const car of Object.values(state.cars)) {
     if (!car.slot || !Object.hasOwn(cells, car.slot)) continue
-    if (car.stage === 'waiting') cells[car.slot] = 'alert'
+    if (car.stage === 'waiting' || car.stage === 'held') cells[car.slot] = 'alert'
     else if (car.stage === 'to_slot' || car.stage === 'parking') cells[car.slot] = 'res'
   }
   return cells

@@ -222,6 +222,8 @@ export type GateResult = {
   confidence: number
   faults: string[]
   degraded: boolean
+  /** True when the input failed schema validation and the answer came from the offline logic. */
+  invalidInput?: boolean
 }
 
 /** Lamp check outcome (M5.5): `expected` from telemetry, `observed` from the camera. */
@@ -230,6 +232,8 @@ export type LampResult = {
   observed: string
   pass: boolean
   degraded: boolean
+  /** True when the input failed schema validation and the answer came from the offline logic. */
+  invalidInput?: boolean
 }
 
 /** Normalised (0-1) image-space box for the dashboard overlay. */
@@ -241,6 +245,8 @@ export type AssistAnalysis = {
   boxes: BoundingBox[]
   recommendation: AssistOption
   degraded: boolean
+  /** True when the input failed schema validation and the answer came from the offline logic. */
+  invalidInput?: boolean
 }
 
 /** Parking decision (M7.5). */
@@ -252,6 +258,8 @@ export type ParkingStep = {
   decision: ParkingDecision
   confidence: number
   degraded: boolean
+  /** True when the input failed schema validation and the answer came from the offline logic. */
+  invalidInput?: boolean
 }
 
 /** Route options at `report_point` (M9.1). */
@@ -262,6 +270,8 @@ export type RouteChoice = {
   confidence: number
   reason: string
   degraded: boolean
+  /** True when the input failed schema validation and the answer came from the offline logic. */
+  invalidInput?: boolean
 }
 
 /** One slot-to-slot move (M9.2). */
@@ -271,4 +281,6 @@ export type YardReplan = {
   moves: YardMove[]
   reason: string
   degraded: boolean
+  /** True when the input failed schema validation and the answer came from the offline logic. */
+  invalidInput?: boolean
 }

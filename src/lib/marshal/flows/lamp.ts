@@ -1,9 +1,11 @@
 // Lamp flow (TEAM_PLAN M5.6). R-12 step 1 (headlights) is checked on the front evidence camera
 // and step 3 (brake_lights) on the rear one. Telemetry always claims ON, so a dark lamp on camera
 // fails the step and sends the car to `rework.electrical`. After the repair the failed steps are
-// re-run (routine_steps) and a PASS sends the car on to `report_point`.
+// re-run (routine_steps) and a PASS sends the car on to `report_point`. Evidence frames are
+// trimmed to the server function limits first (most recent frames kept).
 
-import { UNVERIFIED } from '../../serverFns/logic'
+import { offlineLamp, UNVERIFIED } from '../../serverFns/logic'
+import { fitFrames } from '../frames'
 import { patchCar } from '../state'
 import type { TrackStepEvent } from '../types'
 import type { FlowContext, MissionRecord } from './context'
@@ -48,21 +50,35 @@ async function evaluateStep(
   event: TrackStepEvent,
 ): Promise<void> {
   const lamp = LAMP_STEPS[event.step]
-  const frames = ctx.evidence.getEvidenceFrames(event.vin, lamp.camera)
+  const fitted = fitFrames(ctx.evidence.getEvidenceFrames(event.vin, lamp.camera))
   const hint = ctx.hints?.evidenceHint?.(event.vin, lamp.camera)
-  const result = await ctx.ai.evaluateLampEvidence({
+  const input = {
     vin: event.vin,
     step: event.name || lamp.name,
     telemetry: event.telemetry,
-    frames,
+    frames: fitted.frames,
     ...(hint ? { hint } : {}),
-  })
+  }
+  if (fitted.oversized > 0) {
+    const dropped = `dropped ${fitted.oversized} evidence frame(s) too large to send`
+    const text = `R-12 step ${event.step}: ${dropped}`
+    ctx.decide(event.vin, 'PLANT', text)
+  }
+  // Every frame was too large: answer offline, as when Gemini is unavailable.
+  const result =
+    fitted.frames.length > 0 || fitted.oversized === 0
+      ? await ctx.ai.evaluateLampEvidence(input)
+      : offlineLamp(input)
   if (ctx.mission(event.vin) !== mission) return
 
   const verdict = result.pass ? 'PASS' : 'FAIL'
   const seen = `telemetry ${result.expected}, camera ${result.observed}`
   const text = `R-12 step ${event.step} ${lamp.name}: ${seen} -> ${verdict}`
-  ctx.decide(event.vin, 'GEMINI', text, { exception: !result.pass, degraded: result.degraded })
+  ctx.decide(event.vin, 'GEMINI', text, {
+    exception: !result.pass,
+    degraded: result.degraded,
+    invalidInput: result.invalidInput,
+  })
   if (result.pass) return
 
   mission.failed.push(event.step)

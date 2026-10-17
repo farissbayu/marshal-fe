@@ -10,7 +10,7 @@ import type { FlowContext, MissionPurpose, MissionRecord, TruthHintPort } from '
 import { handleGateArrival } from './flows/gate'
 import { handleReworkDone, handleTrackStep } from './flows/lamp'
 import { runParking } from './flows/parking'
-import { handleReportArrival } from './flows/route'
+import { handleReportArrival, retryHeldAtReport } from './flows/route'
 import {
   handleMoveDone,
   requestYardReplan,
@@ -118,6 +118,13 @@ export type Orchestrator = {
     constraints: YardConstraints,
     opts?: { truck?: { id: string; state: Truck['state'] } },
   ): Promise<YardReplanOutcome>
+  /**
+   * A dock truck leaves: its loaded cars are shipped (despawned, slots freed) and its state
+   * becomes 'left'. Cars held at the report point are then offered the freed slots.
+   * @param id - Dock truck id.
+   * @returns Shipped VINs.
+   */
+  shipTruck(id: string): string[]
   /** Stops reacting to engine events and drops subscribers. */
   dispose(): void
 }
@@ -137,6 +144,7 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
   const missionCounts = new Map<string, number>()
   let state = createInitialState(options.pauseWhenNeeded ?? true)
   let disposed = false
+  let releasing = false
 
   const update = (reducer: (current: MarshalState) => MarshalState) => {
     if (disposed) return
@@ -144,6 +152,23 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
     if (next === state) return
     state = next
     for (const cb of [...subscribers]) cb(state)
+    // Any change may free a yard slot (move done, car shipped): offer it to held cars.
+    if (!releasing) batch(() => retryHeldAtReport(ctx))
+  }
+
+  /** Runs `fn` without re-entering the held-car retry, then retries once. */
+  const batch = (fn: () => void) => {
+    if (releasing) {
+      fn()
+      return
+    }
+    releasing = true
+    try {
+      fn()
+      retryHeldAtReport(ctx)
+    } finally {
+      releasing = false
+    }
   }
 
   const send = (cmd: SimCommand) => {
@@ -170,6 +195,7 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
           text,
           exception: opts.exception ?? false,
           ...(opts.degraded ? { degraded: true } : {}),
+          ...(opts.invalidInput ? { invalidInput: true } : {}),
         }),
       )
     },
@@ -351,6 +377,34 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
         }))
       }
       return requestYardReplan(ctx, constraints)
+    },
+    shipTruck(id) {
+      const truck = state.trucks.find((item) => item.id === id)
+      if (!truck || truck.state === 'left') return []
+      const loaded = truck.slots.flatMap((slot) => {
+        const vin = state.layout[slot]
+        return vin ? [{ slot, vin }] : []
+      })
+      for (const { vin } of loaded) ds.despawn(vin)
+      batch(() => {
+        update((current) => {
+          let next: MarshalState = {
+            ...current,
+            trucks: current.trucks.map((item) =>
+              item.id === id ? { ...item, state: 'left' } : item,
+            ),
+          }
+          for (const { slot, vin } of loaded) {
+            next = patchCar(setSlot(next, slot, null), vin, { stage: 'shipped', slot: undefined })
+          }
+          return derive(next)
+        })
+        for (const { slot, vin } of loaded) {
+          ctx.decide(vin, 'PLANT', `Shipped on ${id} from ${slot}`)
+        }
+        ctx.note(`PLANT · ${id} left with ${loaded.length} car(s)`, 'plant')
+      })
+      return loaded.map(({ vin }) => vin)
     },
     dispose() {
       disposed = true

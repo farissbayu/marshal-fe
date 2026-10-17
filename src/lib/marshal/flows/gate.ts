@@ -1,8 +1,9 @@
 // Gate flow (TEAM_PLAN M3.4): on arrival at `inspection_gate`, capture the four gate views,
-// ask Gemini for the colour / damage check, log it, then send the car to the test track (pass)
-// or the electrical rework bay (fail).
+// drop any view too large for the server function, ask Gemini for the colour / damage check, log
+// it, then send the car to the test track (pass) or the electrical rework bay (fail).
 
-import { UNVERIFIED_FAULT } from '../../serverFns/logic'
+import { offlineGate, UNVERIFIED_FAULT } from '../../serverFns/logic'
+import { fitGateFrames } from '../frames'
 import { patchCar } from '../state'
 import type { GateView } from '../types'
 import type { FlowContext } from './context'
@@ -20,20 +21,26 @@ export async function handleGateArrival(ctx: FlowContext, vin: string): Promise<
   if (!car) return
   ctx.update((state) => patchCar(state, vin, { stage: 'at_gate', location: 'inspection_gate' }))
 
-  const frames = await ctx.gate.capture(vin, GATE_VIEWS)
+  const captured = await ctx.gate.capture(vin, GATE_VIEWS)
+  const { frames, dropped } = fitGateFrames(captured)
   const hints = ctx.hints?.gateHints?.(vin)
-  const result = await ctx.ai.evaluateGatePhotos({
+  const input = {
     vin,
     expectedColour: car.expectedColour,
     frames,
     ...(hints ? { hints } : {}),
-  })
+  }
+  if (dropped.length > 0) {
+    ctx.decide(vin, 'PLANT', `Gate view(s) too large to send, dropped: ${dropped.join(', ')}`)
+  }
+  // No view left to send: answer offline, as when Gemini is unavailable.
+  const result =
+    Object.keys(frames).length > 0 ? await ctx.ai.evaluateGatePhotos(input) : offlineGate(input)
 
   const confidence = result.confidence.toFixed(2)
+  const source = { degraded: result.degraded, invalidInput: result.invalidInput }
   if (result.pass) {
-    ctx.decide(vin, 'GEMINI', `Gate PASS: ${result.colour} as built (${confidence})`, {
-      degraded: result.degraded,
-    })
+    ctx.decide(vin, 'GEMINI', `Gate PASS: ${result.colour} as built (${confidence})`, source)
     ctx.update((state) => patchCar(state, vin, { stage: 'test_track' }))
     ctx.go(vin, ['test_track'], 'track', { routine: 'R-12' })
     return
@@ -44,7 +51,7 @@ export async function handleGateArrival(ctx: FlowContext, vin: string): Promise<
     vin,
     'GEMINI',
     `Gate FAIL: ${faults}; saw ${result.colour}, built ${car.expectedColour} (${confidence})`,
-    { exception: true, degraded: result.degraded },
+    { exception: true, ...source },
   )
   const reworkReason = result.faults.includes(UNVERIFIED_FAULT) ? 'inspection' : 'gate'
   ctx.update((state) => patchCar(state, vin, { stage: 'rework', reworkReason }))

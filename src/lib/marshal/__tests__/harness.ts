@@ -10,14 +10,19 @@ import type { MissionGoCmd, SimCommand } from '../types'
 
 /**
  * Builds a fully offline orchestrator.
- * @param opts - Pause toggle, scripted AI overrides and whether the engine's truth hints are
- * wired (default true; false mimics a real engine with no hints).
+ * @param opts - Pause toggle, scripted AI overrides, whether the engine's truth hints are
+ * wired (default true; false mimics a real engine with no hints) and an optional engine to use.
  * @returns Engine, orchestrator and captured bus traffic.
  */
 export function setup(
-  opts: { pauseWhenNeeded?: boolean; ai?: Partial<MarshalAi>; hints?: boolean } = {},
+  opts: {
+    pauseWhenNeeded?: boolean
+    ai?: Partial<MarshalAi>
+    hints?: boolean
+    ds?: ScriptedDrivingSystem
+  } = {},
 ) {
-  const ds = new ScriptedDrivingSystem()
+  const ds = opts.ds ?? new ScriptedDrivingSystem()
   const bus = createEventBus<MarshalEventMap>()
   const notes: MarshalNote[] = []
   const commands: SimCommand[] = []

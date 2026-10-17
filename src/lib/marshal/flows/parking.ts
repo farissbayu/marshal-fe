@@ -1,6 +1,7 @@
 // Parking flow (TEAM_PLAN M7): from `yard.entry`, loop up to MAX_PARKING_STEPS times: read the
 // obstacles around the slot, ask Gemini (over the A* candidates) for the next step, then execute
-// it. 'parked' marks the slot; 'ask_person' (or running out of steps) raises an assist case.
+// it. 'parked' marks the slot; 'ask_person' (or running out of steps) raises an assist case, and
+// on the last attempt the car is held ('held' stage) for the yard crew instead.
 
 import { MAX_OBSTACLES } from '../schemas'
 import { patchCar, setSlot, slotToPoint } from '../state'
@@ -52,6 +53,7 @@ export async function runParking(ctx: FlowContext, vin: string): Promise<void> {
     ctx.decide(vin, 'GEMINI', text, {
       exception: step.decision === 'ask_person',
       degraded: step.degraded,
+      invalidInput: step.invalidInput,
     })
 
     if (step.decision === 'parked') {
@@ -94,7 +96,7 @@ function askPerson(
   if (attempt >= MAX_PARKING_ATTEMPTS) {
     const abandoned = `Parking ${label} abandoned after ${attempt} attempts (${why})`
     const held = `${abandoned}; the yard crew takes over`
-    ctx.update((state) => patchCar(state, vin, { stage: 'waiting', held }))
+    ctx.update((state) => patchCar(state, vin, { stage: 'held', held }))
     ctx.decide(vin, 'YARD', held, { exception: true })
     return
   }

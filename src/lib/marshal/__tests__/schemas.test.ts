@@ -35,8 +35,10 @@ describe('server function input schemas', () => {
   })
 
   it('reject malformed inputs', () => {
+    // Views dropped client-side (too large) may be missing, but at least one must be sent.
     const threeViews = { front: 'AAAA', rear: 'AAAA', left: 'AAAA' }
-    expect(ok(gateInputSchema, { vin: 'V', expectedColour: 'red', frames: threeViews })).toBe(false)
+    expect(ok(gateInputSchema, { vin: 'V', expectedColour: 'red', frames: threeViews })).toBe(true)
+    expect(ok(gateInputSchema, { vin: 'V', expectedColour: 'red', frames: {} })).toBe(false)
     expect(ok(gateInputSchema, { vin: 'V', expectedColour: '', frames })).toBe(false)
     const lamp = { vin: 'V', step: '', telemetry: {}, frames: [] }
     expect(ok(lampInputSchema, lamp)).toBe(false)

@@ -129,7 +129,7 @@ describe('fail-closed offline checks and shift completion', () => {
     })
     const done = await runUntil(ds, orch.getState, (s) => s.progress === 1)
     expect(done).toBe(true)
-    expect(orch.getState().cars['VIN-F']).toMatchObject({ stage: 'report' })
+    expect(orch.getState().cars['VIN-F']).toMatchObject({ stage: 'held' })
     expect(orch.getState().cars['VIN-F'].held).toMatch(/No free yard slot/)
     expect(feedText('VIN-F').at(-1)).toMatch(/^YARD No free yard slot/)
   })
@@ -332,5 +332,101 @@ describe('Scene E: parking', () => {
     const parked = await runUntil(ds, orch.getState, (s) => s.cars['VIN-X'].stage === 'parked')
     expect(parked).toBe(true)
     expect(orch.getState().layout.A1).toBe('VIN-X')
+  })
+})
+
+describe('held cars', () => {
+  const FULL_ROW = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8']
+  const preParked = FULL_ROW.map((slot) => ({ vin: `Y-${slot}`, colour: 'green', parkedAt: slot }))
+
+  it('holds a car for the yard crew (not for you) when parking is abandoned', async () => {
+    const { ds, orch, feedText } = setup()
+    ds.spawnProp('crate', 'box', POINTS['yard.Y1'].x, POINTS['yard.Y1'].y, 0)
+    orch.start([{ vin: 'VIN-X', colour: 'blue' }])
+    await runUntil(ds, orch.getState, (s) => s.cases['AC-VIN-X-P1'] !== undefined)
+    // The crate stays: the second attempt gives up and the yard crew takes over.
+    expect(orch.chooseAssist('AC-VIN-X-P1', 'wait_for_removal')).toBe(true)
+    const held = await runUntil(ds, orch.getState, (s) => s.cars['VIN-X'].stage === 'held')
+    expect(held).toBe(true)
+
+    const state = orch.getState()
+    expect(state.cars['VIN-X']).toMatchObject({ stage: 'held', slot: 'A1' })
+    expect(state.cars['VIN-X'].held).toMatch(/abandoned after 2 attempts/)
+    expect(Object.values(state.cases).filter((item) => item.status === 'open')).toEqual([])
+    expect(state.paused).toBe(false)
+    expect(state.progress).toBe(1)
+    expect(state.kpis.inYard).toBe(0)
+    expect(feedText('VIN-X').at(-1)).toMatch(/^YARD Parking Y1 abandoned .* the yard crew/)
+  })
+
+  it('offers a held-at-report car the slot freed when a truck leaves', async () => {
+    const { ds, orch, feedText } = setup()
+    orch.start([...preParked, { vin: 'VIN-H', colour: 'blue' }], {
+      trucks: [{ id: 'T-1', state: 'loading', slots: ['A1'] }],
+    })
+    const held = await runUntil(ds, orch.getState, (s) => s.cars['VIN-H'].stage === 'held')
+    expect(held).toBe(true)
+    expect(orch.getState().progress).toBe(1)
+
+    expect(orch.shipTruck('T-1')).toEqual(['Y-A1'])
+    expect(orch.getState().cars['Y-A1']).toMatchObject({ stage: 'shipped' })
+    expect(orch.getState().cars['Y-A1'].slot).toBeUndefined()
+    expect(orch.getState().trucks[0].state).toBe('left')
+    expect(orch.getState().kpis.shipped).toBe(1)
+    expect(orch.shipTruck('T-1')).toEqual([])
+
+    const parked = await runUntil(ds, orch.getState, (s) => s.cars['VIN-H'].stage === 'parked')
+    expect(parked).toBe(true)
+    expect(orch.getState().cars['VIN-H']).toMatchObject({ slot: 'A1' })
+    expect(orch.getState().cars['VIN-H'].held).toBeUndefined()
+    expect(orch.getState().layout.A1).toBe('VIN-H')
+    const feed = feedText('VIN-H')
+    const retry = feed.indexOf('YARD A yard slot freed; retrying slot assignment')
+    expect(retry).toBeGreaterThan(feed.findIndex((line) => line.startsWith('YARD No free yard')))
+    expect(feed[retry + 2]).toBe('YARD Assigned slot A1 (yard.Y1)')
+    expect(feedText('Y-A1')).toContain('PLANT Shipped on T-1 from A1')
+  })
+
+  it('offers a held-at-report car the slot freed by a yard re-plan move', async () => {
+    const { ds, orch } = setup({
+      ai: {
+        replanYardSlots: async () => ({
+          moves: [{ vin: 'Y-A1', from: 'A1', to: 'B1' }],
+          reason: 'Make room',
+          degraded: false,
+        }),
+      },
+    })
+    orch.start([...preParked, { vin: 'VIN-H', colour: 'blue' }])
+    await runUntil(ds, orch.getState, (s) => s.cars['VIN-H'].stage === 'held')
+    const outcome = await orch.applyYardReplan({ reason: 'Make room' })
+    expect(outcome.ordered).toHaveLength(1)
+    expect(orch.getState().layout).toMatchObject({ A1: null, B1: 'Y-A1' })
+    const parked = await runUntil(ds, orch.getState, (s) => s.cars['VIN-H'].stage === 'parked')
+    expect(parked).toBe(true)
+    expect(orch.getState().layout.A1).toBe('VIN-H')
+  })
+
+  it('retries one held car per freed slot', async () => {
+    const { ds, orch, feedText } = setup()
+    orch.start(
+      [...preParked, { vin: 'VIN-H1', colour: 'blue' }, { vin: 'VIN-H2', colour: 'blue' }],
+      { trucks: [{ id: 'T-1', state: 'loading', slots: ['A1'] }] },
+    )
+    await runUntil(
+      ds,
+      orch.getState,
+      (s) => s.cars['VIN-H1'].stage === 'held' && s.cars['VIN-H2'].stage === 'held',
+    )
+    orch.shipTruck('T-1')
+    await runUntil(ds, orch.getState, (s) => s.cars['VIN-H1'].stage === 'parked')
+    const state = orch.getState()
+    expect(state.cars['VIN-H1']).toMatchObject({ stage: 'parked', slot: 'A1' })
+    expect(state.cars['VIN-H2']).toMatchObject({ stage: 'held' })
+    expect(feedText('VIN-H2').filter((line) => line.startsWith('YARD No free yard'))).toHaveLength(
+      1,
+    )
+    expect(feedText('VIN-H2')).not.toContain('YARD A yard slot freed; retrying slot assignment')
+    expect(state.progress).toBe(1)
   })
 })

@@ -1,5 +1,5 @@
 import type { CarState } from '#/lib/marshal/state'
-import { formatClock, whereText } from './format'
+import { formatClock, offlineLabel, whereText } from './format'
 
 /** Props for {@link CarDetail}. */
 export type CarDetailProps = {
@@ -47,7 +47,9 @@ export function CarDetail({ car }: CarDetailProps) {
               <span className={`tag ${decision.tag}`}>{decision.tag}</span>
               <span>
                 {decision.text}
-                {decision.degraded ? <span className="md-offline"> (offline)</span> : null}
+                {decision.degraded ? (
+                  <span className="md-offline"> {offlineLabel(decision)}</span>
+                ) : null}
               </span>
             </li>
           ))}

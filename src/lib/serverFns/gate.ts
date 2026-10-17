@@ -3,15 +3,17 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { type GateInput, gateInputSchema, gateModelSchema } from '#/lib/marshal/schemas'
-import type { GateResult } from '#/lib/marshal/types'
+import type { GateResult, GateView } from '#/lib/marshal/types'
 import { enforceGate, offlineGate } from './logic'
 
 export { offlineGate }
 
-function gatePrompt(input: GateInput): string {
+const GATE_VIEWS: readonly GateView[] = ['front', 'rear', 'left', 'right']
+
+function gatePrompt(input: GateInput, views: readonly GateView[]): string {
   return (
-    'You inspect a newly built car at the plant inspection gate. The 4 images are the fixed ' +
-    'gate cameras in this order: front, rear, left, right.\n' +
+    `You inspect a newly built car at the plant inspection gate. The ${views.length} images ` +
+    `are fixed gate cameras in this order: ${views.join(', ')}.\n` +
     `Build sheet colour: ${input.expectedColour}.\n` +
     'Check the body colour against the build sheet and look for body damage (dents, scratches, ' +
     'missing parts). Reply with ONLY JSON: {"pass":boolean,"colour":string,' +
@@ -21,8 +23,10 @@ function gatePrompt(input: GateInput): string {
 
 async function online(data: GateInput): Promise<GateResult> {
   const { generateJson } = await import('./gemini')
-  const { front, rear, left, right } = data.frames
-  const model = await generateJson(gatePrompt(data), [front, rear, left, right], gateModelSchema)
+  // Views dropped client-side (frame too large) are simply not sent.
+  const views = GATE_VIEWS.filter((view) => data.frames[view])
+  const images = views.map((view) => data.frames[view] ?? '')
+  const model = await generateJson(gatePrompt(data, views), images, gateModelSchema)
   return enforceGate(data, model)
 }
 

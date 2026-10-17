@@ -74,7 +74,7 @@ export type FlowContext = {
     vin: string,
     tag: DecisionTag,
     text: string,
-    opts?: { exception?: boolean; degraded?: boolean },
+    opts?: { exception?: boolean; degraded?: boolean; invalidInput?: boolean },
   ): void
   /** Sends a command to the engine and mirrors it on the bus. */
   send(cmd: SimCommand): void

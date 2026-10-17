@@ -1,8 +1,11 @@
 // Assist flow (TEAM_PLAN M6 / M8.8): an `assist.request` opens a "Waiting on you" case, Gemini
 // analyses the clip and recommends one of the offered options. With "Pause when needed" off the
 // recommendation is applied automatically (chosen_by 'gemini'); otherwise the case waits for the
-// supervisor. Only offered options are ever sent.
+// supervisor. Only offered options are ever sent. The clip sent to Gemini is trimmed to the
+// server function limits (most recent frames kept); the case keeps the whole clip.
 
+import { offlineAssist } from '../../serverFns/logic'
+import { fitFrames } from '../frames'
 import { patchCar, patchCase, upsertCase } from '../state'
 import type { AssistOption, AssistRequestEvent } from '../types'
 import type { FlowContext } from './context'
@@ -37,19 +40,29 @@ export async function handleAssistRequest(
   ctx.decide(event.vin, 'PLANT', `Stopped${where}: ${event.reason}`, { exception: true })
 
   const hint = ctx.hints?.assistHint?.(event.case_id)
-  const analysis = await ctx.ai.analyzeAssistClip({
+  const fitted = fitFrames(event.clip_frames)
+  const input = {
     case_id: event.case_id,
     reason: event.reason,
     options: [...event.options],
-    frames: [...event.clip_frames],
+    frames: fitted.frames,
     ...(hint ? { hint } : {}),
-  })
+  }
+  if (fitted.oversized > 0) {
+    const text = `${event.case_id}: dropped ${fitted.oversized} clip frame(s) too large to send`
+    ctx.decide(event.vin, 'PLANT', text)
+  }
+  // Every frame was too large: answer offline, as when Gemini is unavailable.
+  const analysis =
+    fitted.frames.length === 0 && fitted.oversized > 0
+      ? offlineAssist(input)
+      : await ctx.ai.analyzeAssistClip(input)
   ctx.update((state) => patchCase(state, event.case_id, { analysis }))
   ctx.decide(
     event.vin,
     'GEMINI',
     `${event.case_id}: ${analysis.description} Recommends ${analysis.recommendation}`,
-    { exception: true, degraded: analysis.degraded },
+    { exception: true, degraded: analysis.degraded, invalidInput: analysis.invalidInput },
   )
 
   const state = ctx.state()
@@ -73,7 +86,7 @@ export function chooseAssist(
   by: 'supervisor' | 'gemini',
 ): boolean {
   const item = ctx.state().cases[case_id]
-  if (!item || item.status !== 'open' || !item.options.includes(option)) return false
+  if (item?.status !== 'open' || !item.options.includes(option)) return false
 
   ctx.send({ op: 'assist.choose', case_id, vin: item.vin, option, chosen_by: by })
   const car = ctx.state().cars[item.vin]

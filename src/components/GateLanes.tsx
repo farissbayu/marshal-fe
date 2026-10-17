@@ -2,11 +2,15 @@ import type { CarStage, CarState } from '#/lib/marshal/state'
 import { whereText } from './format'
 
 /** Chip style per lane group (`.chip.*`). */
-export type ChipKind = 'gate' | 'lane' | 'alert' | 'rework'
+export type ChipKind = 'gate' | 'lane' | 'alert' | 'held' | 'rework'
 
 type Group = { key: string; label: string; kind: ChipKind; stages: readonly CarStage[] }
 
-/** Lane groups in display order; parked and shipped cars live in the yard and dock. */
+/**
+ * Lane groups in display order; parked and shipped cars live in the yard and dock. Only cars
+ * with an open assist case ('waiting') are under "Waiting on you"; cars automation gave up on
+ * ('held') are the yard crew's, not the supervisor's.
+ */
 export const LANE_GROUPS: readonly Group[] = [
   {
     key: 'gate',
@@ -16,6 +20,7 @@ export const LANE_GROUPS: readonly Group[] = [
   },
   { key: 'lane', label: 'Driving to a slot', kind: 'lane', stages: ['to_slot', 'parking'] },
   { key: 'you', label: 'Waiting on you', kind: 'alert', stages: ['waiting'] },
+  { key: 'held', label: 'Held for the yard crew', kind: 'held', stages: ['held'] },
   { key: 'rework', label: 'Rework bay', kind: 'rework', stages: ['rework'] },
 ]
 
