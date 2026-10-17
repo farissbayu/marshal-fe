@@ -1,6 +1,7 @@
 // Server-only AI entry point. Wraps the ADK agents (or the offline handlers when no key is
 // configured) behind a TanStack Start server function so the browser can call it via RPC.
-// This is the ONLY module allowed to read GOOGLE_GENAI_API_KEY / GOOGLE_GENAI_USE_VERTEXAI.
+// This module and src/lib/serverFns/gemini.ts are the ONLY modules allowed to read
+// GOOGLE_GENAI_API_KEY / GOOGLE_GENAI_USE_VERTEXAI.
 
 try {
   process.loadEnvFile?.()

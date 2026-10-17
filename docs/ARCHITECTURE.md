@@ -13,10 +13,30 @@ Browser (one tab)
 ├─ src/ui/       dashboard components (React)
 └─ src/stores/   zustand batch store; drives the engine loop via requestAnimationFrame
 
-Server (TanStack Start server function)
-└─ src/ai/       ADK agents + aiTask() server function -> Gemini
-                 (no key -> deterministic offline answers, degraded: true)
+Server (TanStack Start server functions)
+├─ src/ai/            ADK agents + aiTask() server function -> Gemini
+│                     (no key -> deterministic offline answers, degraded: true)
+└─ src/lib/serverFns/ Marshal server functions -> Gemini (same offline fallback)
 ```
+
+## Marshal contract and server functions
+
+- `src/lib/marshal/types.ts` is the TEAM_PLAN contract between the Marshal orchestrator and the
+  driving simulator (`SimCommand`, `SimEvent`, `DrivingSystem`) plus the ports the flows need
+  (`GateCapturePort`, `EvidencePort`, `ParkingPort`) and the server-function result types. Every
+  result carries `degraded: boolean`.
+- `points.ts` holds the named map points (CARLA frame, yaw in degrees), `schemas.ts` the zod
+  input schemas, `eventBus.ts` a dependency-free typed emitter (`sim:*`, `marshal:command`,
+  `ui:note`) and `parking/astar.ts` a pure hybrid A* planner that returns up to 3 candidate
+  control sequences into a slot.
+- `src/lib/serverFns/{gate,lamp,assist,parking,route,yard}.ts` are `createServerFn` RPCs:
+  `evaluateGatePhotos`, `evaluateLampEvidence`, `analyzeAssistClip`, `planParkingStep`,
+  `chooseRouteHazard`, `replanYardSlots`. `gemini.ts` is the only Gemini/env access; it is
+  imported lazily inside the handlers. `logic.ts` holds the pure offline answers and the safety
+  rules every Gemini answer is re-checked against (offered options only, colour mismatch always
+  fails, parking paths always come from A*, yard moves must be legal).
+- The browser calls them only through `createMarshalAi()` (`client.ts`), which falls back to the
+  offline answer when an RPC throws.
 
 ## Data flow
 
@@ -53,7 +73,8 @@ finished = car shipped, parked in yard, or done reworking
   because the SSR dev-hydration path in this TanStack Start/Vite combination does not attach
   event handlers; the app is client-side by design so this costs nothing.
 - **Offline-first AI.** Every task in `src/ai/tasks.ts` has a handler in `src/ai/offline.ts`.
-  Without a key the whole app runs deterministically; the key is read only in `src/ai/server.ts`.
+  Without a key the whole app runs deterministically; the key is read only in `src/ai/server.ts`
+  and `src/lib/serverFns/gemini.ts`.
   A flow awaits the AI promise but the engine tick is not stopped by a single call (offline it is
   effectively instant).
 - **Vision from the same WebGL scene.** `src/render/capture.ts` renders to an offscreen renderer

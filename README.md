@@ -34,7 +34,8 @@ cp .env.example .env
 # Optional: GEMINI_MODEL (default gemini-2.5-flash)
 ```
 
-The key is read **only** in `src/ai/server.ts` and never reaches the browser bundle. With a key
+The key is read **only** in two server-only modules, `src/ai/server.ts` and
+`src/lib/serverFns/gemini.ts`, and never reaches the browser bundle. With a key
 the same flows run, but verdicts/feedback come from the model; on any error or timeout the flow
 silently falls back to the offline answer and the batch keeps going.
 
@@ -56,6 +57,8 @@ src/ai/       ADK agents + server function aiTask() + offline handlers
 src/ui/       dashboard components
 src/stores/   zustand batch store
 src/lib/      small utils (colours, storage)
+  marshal/    TEAM_PLAN contract (types), named points, zod schemas, event bus, A* parking
+  serverFns/  Marshal Gemini server functions + browser-safe client (createMarshalAi)
 ```
 
 See `docs/ARCHITECTURE.md` for the data flow and `docs/DEMO.md` for a 5-minute demo script.
