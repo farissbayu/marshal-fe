@@ -629,7 +629,7 @@ export class ScriptedDrivingSystem
 
   private choose(cmd: AssistChooseCmd): void {
     const record = this.assists.get(cmd.case_id)
-    if (!record || !record.options.includes(cmd.option)) return
+    if (!record?.options.includes(cmd.option)) return
     this.assistOutcomes[cmd.case_id] = { option: cmd.option, chosen_by: cmd.chosen_by }
     const car = this.cars.get(record.vin)
     if (!car) return
