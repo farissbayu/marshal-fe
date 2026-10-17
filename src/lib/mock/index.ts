@@ -5,6 +5,7 @@ import {
   getAssistanceCase,
   getAssistanceCases,
   getAssistanceKpis,
+  ingestAssistanceCase,
 } from "./handlers/assistance";
 import {
   getHealth,
@@ -102,7 +103,6 @@ const routes: Route[] = [
   { method: "GET", pattern: "/jobs/:job_id", handler: getJob },
   { method: "GET", pattern: "/media/:media_id", handler: getMedia },
 
-  { method: "POST", pattern: "/dev/actor", handler: switchActor },
   { method: "POST", pattern: "/trucks/:truck_id/eta", handler: updateTruckEta },
   { method: "POST", pattern: "/trucks/:truck_id/load", handler: loadTruck },
   { method: "POST", pattern: "/zones/:zone/closure", handler: setZoneClosure },
@@ -110,6 +110,7 @@ const routes: Route[] = [
   { method: "POST", pattern: "/cars/:vin/hold", handler: holdCar },
   { method: "POST", pattern: "/cars/:vin/resume", handler: resumeCar },
   { method: "POST", pattern: "/proposals/:proposal_id/decide", handler: decideProposal },
+  { method: "POST", pattern: "/assistance/cases", handler: ingestAssistanceCase },
   { method: "POST", pattern: "/assistance/cases/:case_id/decide", handler: decideAssistance },
   { method: "POST", pattern: "/cars/:vin/rework/done", handler: markReworkDone },
   { method: "POST", pattern: "/lab/scenarios", handler: createScenario },
@@ -122,14 +123,6 @@ const routes: Route[] = [
   { method: "POST", pattern: "/lab/releases/:release_id/evaluate", handler: evaluateRelease },
   { method: "POST", pattern: "/lab/releases/:release_id/approve", handler: approveRelease },
 ];
-
-function switchActor(req: MockRequest) {
-  const role = String(req.body.role ?? "");
-  const actor = db.actors.find((a) => a.role === role);
-  if (!actor) fail(422, `Role '${role}' tidak dikenal.`, "invalid_role");
-  db.actorId = actor.actor_id;
-  return actor;
-}
 
 function matchRoute(
   method: HttpMethod,
@@ -171,7 +164,7 @@ export async function mockRequest(
 
   const match = matchRoute(method, path);
   if (!match) {
-    fail(404, `Mock route tidak ditemukan: ${method} ${path}`, "route_not_found");
+    fail(404, `Mock route not found: ${method} ${path}`, "route_not_found");
   }
 
   const req: MockRequest = {

@@ -25,7 +25,7 @@ export function OptionRadioGroup({
       onValueChange={onChange}
       disabled={disabled}
       className="space-y-2"
-      aria-label="Opsi keputusan assistance"
+      aria-label="Assistance decision options"
     >
       {options.map((option) => (
         <label
@@ -51,11 +51,11 @@ export function OptionRadioGroup({
                       : "success"
                 }
               >
-                Risiko {option.risk}
+                Risk: {option.risk}
               </Badge>
             </span>
             <span className="mt-0.5 block text-xs text-fg-muted">
-              {option.reason ?? "Tidak ada alasan ranking."}
+              {option.reason ?? "No ranking reason."}
             </span>
           </span>
         </label>

@@ -24,7 +24,7 @@ Implementasi tiga halaman utama operasional: ringkasan shift & monitoring live (
 ┌────────────────────────────────────────────────────────────────────────┐
 │ [API Connected] [Plant 01] [Stream Live ●] [10:45:12 UTC] [Supervisor] │ ← Top bar
 ├────────────────────────────────────────────────────────────────────────┤
-│ Kartu KPI: Mobil Aktif | Assistance Open | Proposal Pending | Lab Gate │
+│ KPI Card: Active Car | Assistance Open | Proposal Pending | Lab Gate │
 ├────────────────────────────────────┬───────────────────────────────────┤
 │ 📹 Plant CCTV / CARLA Stream       │ ⚡ Live Flow Activity Log (SSE)   │
 │ [LIVE ●] [HD Stream] [Reload]      │ [Filter: All | F1 | F2 .. F7] [⏸]│
@@ -44,16 +44,20 @@ Implementasi tiga halaman utama operasional: ringkasan shift & monitoring live (
 ### Checklist
 
 #### 1. Panel CCTV Live Stream (`<PlantCameraFeed />`)
+
 Mengacu pada implementasi `marshal-ai/carla_viewer.py` & `dashboard.py`:
+
 - [ ] Render stream MJPEG native via tag `<img src="/camera.mjpg" alt="Plant camera stream" />` (atau `/api/v1/camera/stream`)
 - [ ] Tombol toggle mode: **Stream Live (MJPEG)** vs **Snapshot (JPEG)** (berguna jika jaringan operator terbatas)
 - [ ] Indikator status feed: `LIVE ●` (merah), `PAUSED` (abu-abu), `OFFLINE` (kuning/merah)
 - [ ] Tombol reload/reconnect jika feed terputus
 - [ ] Menampilkan metadata kamera jika tersedia dari endpoint status (nama map/plant, resolusi, estimasi FPS)
-- [ ] Fallback error: jika kamera backend/CARLA mati (`503`), tampilkan panel *"CCTV Stream Unavailable"* dengan tombol coba lagi
+- [ ] Fallback error: jika kamera backend/CARLA mati (`503`), tampilkan panel _"CCTV Stream Unavailable"_ dengan tombol coba lagi
 
 #### 2. Panel Live Flow Activity Log (`<LiveActivityFeed />`)
+
 Mengacu pada implementasi `marshal-ai/dashboard.py` (`EventLog` -> `/events`):
+
 - [ ] Mengonsumsi stream SSE via hook `useEventStream('/api/v1/events')` yang tersimpan di `useEventLogStore`
 - [ ] Filter tab/pill berdasarkan alur kerja:
   - `All Flows`
@@ -75,16 +79,19 @@ Mengacu pada implementasi `marshal-ai/dashboard.py` (`EventLog` -> `/events`):
   - Counter jumlah event aktif (maksimal 400 event dalam memori buffer)
 
 #### 3. Kartu KPI Operasional
+
 - [ ] Fetch dari `GET /api/v1/kpis` dan `GET /api/v1/overview`
 - [ ] Tampilkan: mobil per status penting, assistance open, proposal pending, release gate status
 - [ ] Skeleton loading saat initial fetch, error state dengan tombol retry
 
 #### 4. Butuh Tindakan vs Operasi Yard
+
 - [ ] Kolom Butuh Tindakan: daftar kasus assistance open (`open=true`) dan proposal pending
 - [ ] Kolom Operasi Yard: mobil yang berstatus exception atau tertahan (held)
 - [ ] Klik item langsung menavigasi ke halaman detail terkait dengan query/filter tepat
 
 #### 5. Polling & Resiliensi Data
+
 - [ ] State REST tetap dipoll secara berkala (5 detik untuk queue aktif) sebagai backstop jaminan sinkronisasi jika koneksi SSE sempat terputus
 - [ ] Polling otomatis berhenti saat tab browser tersembunyi (`document.visibilityState === 'hidden'`)
 
@@ -111,28 +118,31 @@ Mengacu pada implementasi `marshal-ai/dashboard.py` (`EventLog` -> `/events`):
 ### Checklist
 
 **Data & Tampilan:**
+
 - [ ] Fetch `GET /api/v1/yard` untuk status mobil, trucks, zone closures, bays, exceptions
 - [ ] Peta yard: jika API memberikan koordinat, render skema titik/jalur; jika hanya teks, tampilkan daftar titik rute
 - [ ] **CCTV Mini Preview (Opsional / Floating):** tombol toggle untuk melihat jendela kecil feed CCTV gerbang saat operator mengawasi arus masuk mobil di yard
 
 **Tabel Mobil & Filter:**
+
 - [ ] Kolom: VIN, Status Badge, Lokasi, Mission, Truck, Slot, Flags, Updated
 - [ ] Filter: status, lokasi, flags — tersimpan di URL search params
 - [ ] Klik baris → navigasi ke `/cars/{vin}`
 
 **Panel Truck:**
+
 - [ ] Truck ID, ETA aktual, scheduled ETA, delay indicator, daftar mobil untuk truck tersebut
 
 **Aksi Yard (Konfirmasi Wajib):**
 
-| Aksi | Endpoint | Form / Dialog |
-|---|---|---|
-| Update ETA truck | `POST /api/v1/trucks/{truck_id}/eta` | Input ETA baru + alasan |
-| Load truck | `POST /api/v1/trucks/{truck_id}/load` | Konfirmasi muatan VIN |
-| Tutup/buka zone | `POST /api/v1/zones/{zone}/closure` | Konfirmasi status zone |
-| Send mission | `POST /api/v1/cars/{vin}/missions` | Tujuan + alasan |
-| Hold mobil | `POST /api/v1/cars/{vin}/hold` | Alasan + durasi |
-| Resume mobil | `POST /api/v1/cars/{vin}/resume` | Konfirmasi lanjut jalan |
+| Aksi             | Endpoint                              | Form / Dialog           |
+| ---------------- | ------------------------------------- | ----------------------- |
+| Update ETA truck | `POST /api/v1/trucks/{truck_id}/eta`  | Input ETA baru + alasan |
+| Load truck       | `POST /api/v1/trucks/{truck_id}/load` | Konfirmasi muatan VIN   |
+| Tutup/buka zone  | `POST /api/v1/zones/{zone}/closure`   | Konfirmasi status zone  |
+| Send mission     | `POST /api/v1/cars/{vin}/missions`    | Tujuan + alasan         |
+| Hold mobil       | `POST /api/v1/cars/{vin}/hold`        | Alasan + durasi         |
+| Resume mobil     | `POST /api/v1/cars/{vin}/resume`      | Konfirmasi lanjut jalan |
 
 - [ ] Disable tombol saat mutasi pending (cegah double submit)
 - [ ] Penanganan konflik `409 Conflict`: beri pesan jelas dan tombol refresh data
@@ -144,10 +154,12 @@ Mengacu pada implementasi `marshal-ai/dashboard.py` (`EventLog` -> `/events`):
 ### Checklist
 
 **Daftar Mobil (`/cars`):**
+
 - [ ] Pencarian VIN, filter status, lokasi, truck, flags via URL search params
 - [ ] Tabel data dengan pagination server-side
 
 **Detail Mobil (`/cars/{vin}`):**
+
 - [ ] Ringkasan VIN, build sheet, status, lokasi, mission, truck, slot, flags, timestamps
 - [ ] Tab **Inspeksi Visual**: verdict, temuan per zone bodi, foto bukti kamera gerbang
 - [ ] Tab **Functional Checklist**: checklist langkah uji, telemetri sensor vs rekaman kamera

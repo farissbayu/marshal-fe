@@ -5,8 +5,8 @@ import { OptionRadioGroup } from "@/components/domain/OptionRadioGroup";
 import type { AssistanceOption } from "@/lib/schemas";
 
 const OPTIONS: AssistanceOption[] = [
-  { id: "BYPASS_LEFT", label: "Bypass kiri", risk: "low", reason: "Jalur kiri bersih" },
-  { id: "BYPASS_RIGHT", label: "Bypass kanan", risk: "medium", reason: "Ada peralatan" },
+  { id: "BYPASS_LEFT", label: "Bypass left", risk: "low", reason: "Left lane clear" },
+  { id: "BYPASS_RIGHT", label: "Bypass right", risk: "medium", reason: "Equipment present" },
 ];
 
 describe("OptionRadioGroup", () => {
@@ -23,7 +23,7 @@ describe("OptionRadioGroup", () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
     render(<OptionRadioGroup options={OPTIONS} value={null} onChange={onChange} />);
-    await user.click(screen.getByText("Bypass kanan"));
+    await user.click(screen.getByText("Bypass right"));
     expect(onChange).toHaveBeenCalledWith("BYPASS_RIGHT");
   });
 

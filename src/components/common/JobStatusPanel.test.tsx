@@ -19,7 +19,7 @@ describe("JobStatusPanel", () => {
       kind: "release_evaluate",
       status: "done",
       progress: 100,
-      message: "Selesai",
+      message: "Done",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -31,6 +31,6 @@ describe("JobStatusPanel", () => {
   it("renders an unknown-state panel when the job cannot be found", async () => {
     vi.mocked(fetchJob).mockRejectedValue(new Error("job not found"));
     renderWithProviders(<JobStatusPanel jobId="JOB-9999" />);
-    expect(await screen.findByText("Status pekerjaan tidak diketahui")).toBeInTheDocument();
+    expect(await screen.findByText("Job status unknown")).toBeInTheDocument();
   });
 });

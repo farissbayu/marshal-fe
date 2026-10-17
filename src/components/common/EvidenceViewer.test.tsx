@@ -68,7 +68,7 @@ describe("EvidenceViewer", () => {
       available: true,
     });
     renderWithProviders(<EvidenceViewer mediaId="media-gs" fill />);
-    expect(await screen.findByText(/GCS belum dikonfigurasi/i)).toBeInTheDocument();
+    expect(await screen.findByText(/GCS is not configured/i)).toBeInTheDocument();
     expect(screen.queryByRole("video")).not.toBeInTheDocument();
   });
 
@@ -87,24 +87,22 @@ describe("EvidenceViewer", () => {
 
   it("offers a retry when the media request times out (cold GCS fetch)", async () => {
     vi.mocked(fetchMedia).mockRejectedValue(
-      new ApiError({ status: 0, kind: "timeout", message: "Permintaan melebihi batas waktu." }),
+      new ApiError({ status: 0, kind: "timeout", message: "Request timed out." }),
     );
     renderWithProviders(<EvidenceViewer mediaId="media-slow" />);
     expect(
-      await screen.findByText(/Media belum bisa dimuat dari server/i, undefined, {
+      await screen.findByText(/Media could not be loaded from the server/i, undefined, {
         timeout: 3000,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Coba lagi/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Try again/i })).toBeInTheDocument();
   });
 
   it("shows a placeholder when media is expired/unavailable", async () => {
     vi.mocked(fetchMedia).mockRejectedValue(
-      new ApiError({ status: 410, kind: "validation", message: "Media telah kedaluwarsa." }),
+      new ApiError({ status: 410, kind: "validation", message: "Media has expired." }),
     );
     renderWithProviders(<EvidenceViewer mediaId="media-003" />);
-    expect(
-      await screen.findByText(/Media tidak tersedia|Media telah kedaluwarsa/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Media unavailable|Media has expired/)).toBeInTheDocument();
   });
 });

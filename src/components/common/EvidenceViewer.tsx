@@ -76,10 +76,10 @@ export function EvidenceViewer({
         <ImageOff className="size-5 text-fg-subtle" aria-hidden />
         <p className="text-xs text-fg-muted">
           {retryable
-            ? "Media belum bisa dimuat dari server."
+            ? "Media could not be loaded from the server."
             : errorKind === "not_found" || errorKind === "validation"
-              ? "Media telah kedaluwarsa"
-              : "Media tidak tersedia"}
+              ? "Media has expired"
+              : "Media unavailable"}
         </p>
         <p className="font-mono text-[10px] text-fg-subtle">{mediaId}</p>
         {retryable && (
@@ -95,7 +95,7 @@ export function EvidenceViewer({
             ) : (
               <RefreshCw className="size-3.5" />
             )}
-            Coba lagi
+            Try again
           </Button>
         )}
       </div>
@@ -117,7 +117,7 @@ export function EvidenceViewer({
       >
         <ImageOff className="size-5 text-fg-subtle" aria-hidden />
         <p className="text-xs text-fg-muted">
-          Media belum dapat diputar: GCS belum dikonfigurasi di API.
+          Media cannot be played: GCS is not configured in the API.
         </p>
         <p className="font-mono text-[10px] text-fg-subtle">{media.url}</p>
       </div>
@@ -150,7 +150,7 @@ export function EvidenceViewer({
             className={cn("mx-auto w-full object-contain", mediaSize)}
             aria-label={label ?? `Evidence ${mediaId}`}
           >
-            Browser Anda tidak mendukung tag video.
+            Your browser does not support the video tag.
           </video>
           {renderBoxes(boxes)}
         </div>
@@ -162,7 +162,7 @@ export function EvidenceViewer({
             fill ? "aspect-video" : "rounded-md border border-border",
           )}
           onClick={() => setExpanded((v) => !v)}
-          aria-label={expanded ? "Perkecil media" : "Perbesar media"}
+          aria-label={expanded ? "Collapse media" : "Expand media"}
         >
           <img
             src={media.url}

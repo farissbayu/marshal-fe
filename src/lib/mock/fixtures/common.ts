@@ -28,30 +28,22 @@ export function actors(): Actor[] {
     {
       actor_id: "user-supervisor-01",
       display_name: "Fariss Bayu",
-      role: "supervisor",
       plant: "Plant 01 · Pasuruan",
-      permissions: ["assistance.decide", "proposal.decide", "rework.confirm", "yard.action"],
     },
     {
       actor_id: "user-inspector-01",
       display_name: "Rani Inspector",
-      role: "inspector",
       plant: "Plant 01 · Pasuruan",
-      permissions: ["inspection.review", "quality.read"],
     },
     {
       actor_id: "user-worker-01",
       display_name: "Budi Worker",
-      role: "worker",
       plant: "Plant 01 · Pasuruan",
-      permissions: ["rework.done"],
     },
     {
       actor_id: "user-engineer-01",
       display_name: "Andi Engineer",
-      role: "engineer",
       plant: "Plant 01 · Pasuruan",
-      permissions: ["scenario.review", "release.evaluate", "release.approve", "lab.run"],
     },
   ];
 }

@@ -18,7 +18,7 @@ export function getInspectionResults(req: MockRequest) {
 export function getVisualInspection(req: MockRequest): VisualInspection {
   const vin = req.params.vin;
   const visual = req.db.visual[vin];
-  if (!visual) fail(404, `Hasil inspeksi visual ${vin} tidak ditemukan.`, "inspection_not_found");
+  if (!visual) fail(404, `Visual inspection result ${vin} not found.`, "inspection_not_found");
   return visual;
 }
 
@@ -26,7 +26,7 @@ export function getFunctionalInspection(req: MockRequest): FunctionalInspection 
   const vin = req.params.vin;
   const functional = req.db.functional[vin];
   if (!functional)
-    fail(404, `Hasil inspeksi fungsional ${vin} tidak ditemukan.`, "inspection_not_found");
+    fail(404, `Functional inspection result ${vin} not found.`, "inspection_not_found");
   return functional;
 }
 
@@ -49,7 +49,7 @@ export function getReports(req: MockRequest) {
 
 export function getCarReport(req: MockRequest) {
   const report = req.db.reports[req.params.vin];
-  if (!report) fail(404, `Report ${req.params.vin} tidak ditemukan.`, "report_not_found");
+  if (!report) fail(404, `Report ${req.params.vin} not found.`, "report_not_found");
   report.rework_tickets = req.db.reworkTickets.filter((t) => t.vin === req.params.vin);
   return report;
 }
@@ -58,12 +58,9 @@ export function markReworkDone(req: MockRequest) {
   const vin = req.params.vin;
   const actorId = strQuery(req.body.actor_id);
   const actor = req.db.actors.find((a) => a.actor_id === actorId);
-  if (!actor) fail(422, "actor_id tidak valid.", "invalid_actor");
-  if (actor.role !== "worker") {
-    fail(403, "Hanya worker yang dapat menandai perbaikan selesai.", "forbidden");
-  }
+  if (!actor) fail(422, "actor_id is invalid.", "invalid_actor");
   const ticket = req.db.reworkTickets.find((t) => t.vin === vin && t.status !== "DONE");
-  if (!ticket) fail(404, `Tidak ada tiket rework aktif untuk ${vin}.`, "ticket_not_found");
+  if (!ticket) fail(404, `No active rework ticket for ${vin}.`, "ticket_not_found");
   ticket.status = "DONE";
   ticket.done_by = actor.actor_id;
   ticket.updated_at = new Date().toISOString();

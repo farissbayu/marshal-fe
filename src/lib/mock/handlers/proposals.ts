@@ -13,26 +13,24 @@ export function getProposals(req: MockRequest) {
 
 export function getProposal(req: MockRequest): Proposal {
   const proposal = req.db.proposals.find((p) => p.proposal_id === req.params.proposal_id);
-  if (!proposal)
-    fail(404, `Proposal ${req.params.proposal_id} tidak ditemukan.`, "proposal_not_found");
+  if (!proposal) fail(404, `Proposal ${req.params.proposal_id} not found.`, "proposal_not_found");
   return proposal;
 }
 
 export function decideProposal(req: MockRequest) {
   const proposal = req.db.proposals.find((p) => p.proposal_id === req.params.proposal_id);
-  if (!proposal)
-    fail(404, `Proposal ${req.params.proposal_id} tidak ditemukan.`, "proposal_not_found");
+  if (!proposal) fail(404, `Proposal ${req.params.proposal_id} not found.`, "proposal_not_found");
   if (proposal.status !== "pending") {
     fail(
       409,
-      "Proposal sudah diputuskan oleh pihak lain. Muat ulang data.",
+      "Proposal already decided by another party. Reload data.",
       "proposal_already_decided",
     );
   }
   const actorId = strQuery(req.body.actor_id);
   requireActor(req.db, actorId);
   const decision = strQuery(req.body.decision);
-  if (!decision) fail(422, "Keputusan wajib diisi.", "validation_error");
+  if (!decision) fail(422, "Decision is required.", "validation_error");
 
   const alias: Record<string, string> = {
     approve: "approve",
@@ -41,14 +39,14 @@ export function decideProposal(req: MockRequest) {
     escalate: "escalate",
   };
   const normalized = alias[decision];
-  if (!normalized) fail(422, `Keputusan '${decision}' tidak dikenal.`, "validation_error");
+  if (!normalized) fail(422, `Decision '${decision}' is not recognized.`, "validation_error");
   const requiresConfirm = proposal.allowed_actions.includes("confirm");
   const valid =
     proposal.allowed_actions.includes(normalized) ||
     (normalized === "approve" && requiresConfirm) ||
     (normalized === "reject" && requiresConfirm);
   if (!valid) {
-    fail(422, `Aksi '${decision}' tidak diizinkan untuk proposal ini.`, "action_not_allowed");
+    fail(422, `Action '${decision}' is not allowed for this proposal.`, "action_not_allowed");
   }
 
   const statusMap: Record<string, Proposal["status"]> = {

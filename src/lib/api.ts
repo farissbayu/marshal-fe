@@ -127,6 +127,17 @@ export const decideAssistance = (caseId: string, body: { option: string; actor_i
     idempotencyKey: `assist-${caseId}`,
   });
 
+export const ingestAssistanceCase = (body: {
+  clip_uri: string;
+  vin: string;
+  location?: string;
+  options: string[];
+  situation?: string;
+}) =>
+  api.post("/assistance/cases", body, {
+    schema: assistanceCaseSchema,
+  });
+
 /* --------------------------- inspection / report -------------------------- */
 
 export const fetchInspectionResults = (params: ListParams = {}) =>
@@ -218,10 +229,5 @@ export const fetchJob = (jobId: string) =>
 export const fetchMedia = (mediaId: string) =>
   // GCS cold fetch can exceed the default 12s timeout on first access.
   api.get(`/media/${encodeURIComponent(mediaId)}`, { schema: mediaSchema, timeoutMs: 30_000 });
-
-/* ------------------------------- dev actor -------------------------------- */
-
-export const switchMockActor = (role: string) =>
-  api.post("/dev/actor", { role }, { schema: actorSchema });
 
 export { buildSheetMismatchSchema, truckSchema };

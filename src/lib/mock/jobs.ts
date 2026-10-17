@@ -16,13 +16,13 @@ function nextId(db: MockDb): string {
 export const JOB_RULES: Record<string, JobRule> = {
   scenario_generation: {
     durationMs: 6000,
-    progressMessage: "Menghasilkan skenario & menjalankan dry-run",
+    progressMessage: "Generating scenario & running dry-run",
     onComplete: (database, _job, payload) => {
       database.scenarioSeq += 1;
       const scenarioId = `S${String(database.scenarioSeq).padStart(3, "0")}`;
       const now = Date.now();
       const source = String(payload.source ?? "manual");
-      const situation = String(payload.situation ?? "Skenario baru dari test lab.");
+      const situation = String(payload.situation ?? "New scenario from test lab.");
       const scenario: Scenario = {
         scenario_id: scenarioId,
         source,
@@ -36,7 +36,6 @@ export const JOB_RULES: Record<string, JobRule> = {
       const isWorkerForklift =
         situation.toLowerCase().includes("worker") ||
         situation.toLowerCase().includes("forklift") ||
-        situation.toLowerCase().includes("pekerja") ||
         source === "case-01" ||
         source === "case-02";
 
@@ -79,10 +78,10 @@ export const JOB_RULES: Record<string, JobRule> = {
         validator_notes: [
           {
             severity: "ok",
-            message: "Titik peta 'finishing_corner.p3' valid terhadap plant map koordinat",
+            message: "Map point 'finishing_corner.p3' is valid against the plant map coordinates",
           },
-          { severity: "ok", message: "Actor types dan kriteria lulus tervalidasi" },
-          { severity: "ok", message: "Compiled ke kode ScenarioRunner CARLA 0.9.15" },
+          { severity: "ok", message: "Actor types and pass criteria validated" },
+          { severity: "ok", message: "Compiled to CARLA 0.9.15 ScenarioRunner code" },
         ],
         dry_run_metrics: { distance_m: 42, steps: 16, collisions: 0, duration_s: 18 },
         review: null,
@@ -208,15 +207,13 @@ export const JOB_RULES: Record<string, JobRule> = {
           ],
           failure_report: {
             variant_id: `${scenarioId}-v17`,
-            summary: `${scenarioId}-v17 gagal: mobil berhenti pada jarak 0.6 m dari pekerja di malam hari di balik tumpukan palet (batas aman 1.5 m). Lolos pada varian dusk.`,
-            conditions:
-              "Malam hari (night), pemicu pekerja 7 m, occluder pallet_stack, kecepatan ego 10 km/h.",
+            summary: `${scenarioId}-v17 failed: car stopped 0.6 m from worker at night behind a pallet stack (safety margin 1.5 m). Passed on the dusk variant.`,
+            conditions: "Night, worker trigger 7 m, occluder pallet_stack, ego speed 10 km/h.",
             measured_gap_m: 0.6,
             limit_gap_m: 1.5,
-            likely_cause:
-              "Deteksi terlambat dalam kondisi cahaya rendah di balik penghalang tinggi (pallet stack).",
+            likely_cause: "Late detection in low light behind a tall occluder (pallet stack).",
             suggested_fix:
-              "Turunkan batas kecepatan ego di area finishing_corner saat malam hari menjadi 5 km/h.",
+              "Reduce the ego speed limit in the finishing_corner area at night to 5 km/h.",
             clip_id: "media-005",
           },
         },
@@ -236,7 +233,7 @@ export const JOB_RULES: Record<string, JobRule> = {
   },
   adversarial_search: {
     durationMs: 7000,
-    progressMessage: "Menjalankan pencarian adversarial",
+    progressMessage: "Running adversarial search",
     onComplete: (database, _job, payload) => {
       const scenarioId = String(payload.scenario_id ?? "");
       const detail = database.scenarioDetails[scenarioId];
@@ -367,15 +364,12 @@ export const JOB_RULES: Record<string, JobRule> = {
         failure_report: fragile
           ? {
               variant_id: `${scenarioId}-v17`,
-              summary: `${scenarioId}-v17 gagal: mobil berhenti pada jarak 0.6 m dari pekerja di malam hari di balik tumpukan palet (batas 1.5 m).`,
-              conditions:
-                "Malam hari (night), pemicu pekerja 7 m, occluder pallet_stack, kecepatan ego 10 km/h.",
+              summary: `${scenarioId}-v17 failed: car stopped 0.6 m from worker at night behind a pallet stack (1.5 m limit).`,
+              conditions: "Night, worker trigger 7 m, occluder pallet_stack, ego speed 10 km/h.",
               measured_gap_m: 0.6,
               limit_gap_m: 1.5,
-              likely_cause:
-                "Deteksi terlambat dalam kondisi cahaya rendah di balik penghalang tinggi (pallet stack).",
-              suggested_fix:
-                "Turunkan kecepatan ego di area finishing_corner saat malam hari menjadi 5 km/h.",
+              likely_cause: "Late detection in low light behind a tall occluder (pallet stack).",
+              suggested_fix: "Reduce ego speed in the finishing_corner area at night to 5 km/h.",
               clip_id: "media-005",
             }
           : null,
@@ -386,7 +380,7 @@ export const JOB_RULES: Record<string, JobRule> = {
   },
   release_evaluate: {
     durationMs: 8000,
-    progressMessage: "Menjalankan regression suite",
+    progressMessage: "Running regression suite",
     onComplete: (database, _job, payload) => {
       const releaseId = String(payload.release_id ?? "");
       const release = database.releases.find((r) => r.release_id === releaseId);
@@ -438,7 +432,7 @@ export function startJob(database: MockDb, kind: string, payload: Record<string,
     kind,
     status: "queued",
     progress: 0,
-    message: JOB_RULES[kind]?.progressMessage ?? "Menunggu diproses",
+    message: JOB_RULES[kind]?.progressMessage ?? "Waiting to be processed",
     result: null,
     created_at: new Date(now).toISOString(),
     updated_at: new Date(now).toISOString(),
@@ -453,7 +447,7 @@ export function materializeJob(database: MockDb, job: Job): Job {
   const rule = JOB_RULES[job.kind];
   if (!rule) {
     job.status = "unknown";
-    job.message = "Status pekerjaan tidak diketahui";
+    job.message = "Job status unknown";
     return job;
   }
   const elapsed = Date.now() - new Date(job.created_at).getTime();
@@ -461,7 +455,7 @@ export function materializeJob(database: MockDb, job: Job): Job {
   if (elapsed >= rule.durationMs) {
     job.status = "done";
     job.progress = 100;
-    job.message = "Selesai";
+    job.message = "Done";
     job.updated_at = new Date(now).toISOString();
     rule.onComplete(database, job, database.jobPayloads[job.job_id] ?? {});
     job.result = { kind: job.kind, completed_at: job.updated_at };

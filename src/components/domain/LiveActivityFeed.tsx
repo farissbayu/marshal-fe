@@ -53,12 +53,12 @@ export function LiveActivityFeed({ className }: { className?: string }) {
           <Button
             size="icon-sm"
             variant="ghost"
-            aria-label={isPaused ? "Lanjutkan auto-scroll" : "Jeda auto-scroll"}
+            aria-label={isPaused ? "Resume auto-scroll" : "Pause auto-scroll"}
             onClick={togglePaused}
           >
             {isPaused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
           </Button>
-          <Button size="icon-sm" variant="ghost" aria-label="Bersihkan feed" onClick={clear}>
+          <Button size="icon-sm" variant="ghost" aria-label="Clear feed" onClick={clear}>
             <Trash2 className="size-3.5" />
           </Button>
         </div>
@@ -86,11 +86,11 @@ export function LiveActivityFeed({ className }: { className?: string }) {
         className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-2"
         role="log"
         aria-live={isPaused ? "off" : "polite"}
-        aria-label="Log aktivitas flow"
+        aria-label="Flow activity log"
       >
         {filtered.length === 0 ? (
           <p className="px-2 py-8 text-center text-xs text-fg-subtle">
-            Menunggu event masuk dari stream…
+            Waiting for events from the stream…
           </p>
         ) : (
           filtered.map((event) => (
@@ -120,7 +120,7 @@ export function LiveActivityFeed({ className }: { className?: string }) {
 
       {isPaused && (
         <div className="border-t border-warning/40 bg-warning/10 px-3 py-1 text-[10px] text-warning">
-          Auto-scroll dijeda — event baru tetap masuk (buffer maks {EVENT_BUFFER_LIMIT}).
+          Auto-scroll paused — new events still arrive (max buffer {EVENT_BUFFER_LIMIT}).
         </div>
       )}
     </div>

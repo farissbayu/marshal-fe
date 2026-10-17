@@ -5,7 +5,7 @@ import { ApiError, getErrorMessage } from "@/lib/errors";
 export function ErrorPanel({
   error,
   onRetry,
-  title = "Gagal memuat data",
+  title = "Failed to load data",
   compact,
 }: {
   error: unknown;
@@ -39,7 +39,7 @@ export function ErrorPanel({
         <div className="flex justify-end">
           <Button size="sm" variant="secondary" onClick={onRetry}>
             <RefreshCw className="size-3.5" />
-            Coba lagi
+            Try again
           </Button>
         </div>
       )}
@@ -50,19 +50,19 @@ export function ErrorPanel({
 export function recoveryHint(error: ApiError): string | undefined {
   switch (error.kind) {
     case "unauthorized":
-      return "Muat ulang halaman untuk memulai sesi baru.";
+      return "Reload the page to start a new session.";
     case "forbidden":
-      return "Hubungi supervisor jika Anda memerlukan akses ini.";
+      return "Contact a supervisor if you need this access.";
     case "not_found":
-      return "Resource mungkin sudah dipindahkan atau dihapus.";
+      return "The resource may have been moved or deleted.";
     case "conflict":
-      return "Data mungkin sudah berubah di tempat lain. Muat ulang data terbaru.";
+      return "Data may have changed elsewhere. Reload the latest data.";
     case "validation":
-      return "Periksa kembali input yang dikirim.";
+      return "Check the submitted input again.";
     case "unavailable":
     case "timeout":
     case "network":
-      return "Layanan tidak tersedia sementara. Coba beberapa saat lagi.";
+      return "Service temporarily unavailable. Try again in a moment.";
     default:
       return undefined;
   }

@@ -1,105 +1,105 @@
 # Marshal Control Tower — Frontend
 
-Frontend operasional Marshal untuk supervisor, inspector, worker, dan engineer: monitoring
-yard & CCTV, keputusan assistance, inspeksi & rework, serta Test Lab (skenario, adversarial
-search, dan release gate).
+Marshal operations frontend for supervisors, inspectors, workers, and engineers: yard & CCTV
+monitoring, assistance decisions, inspections & rework, and the Test Lab (scenarios, adversarial
+search, and release gate).
 
-Dibangun dengan **Bun**, **React 19 + TypeScript + Vite**, **TanStack Router**,
-**TanStack Query**, **Tailwind CSS v4**, **shadcn/ui** (Radix), **Zod**, dan **Zustand**.
+Built with **Bun**, **React 19 + TypeScript + Vite**, **TanStack Router**,
+**TanStack Query**, **Tailwind CSS v4**, **shadcn/ui** (Radix), **Zod**, and **Zustand**.
 
-## Prasyarat
+## Prerequisites
 
-- [Bun](https://bun.sh) `>= 1.2` (dikembangkan dengan 1.4)
+- [Bun](https://bun.sh) `>= 1.2` (developed with 1.4)
 
-## Setup Development
+## Development Setup
 
 ```bash
 bun install
 bun run dev        # http://localhost:5173
 ```
 
-Secara default `.env.development` mengaktifkan **mock mode** (`VITE_MOCK_MODE=true`) sehingga
-seluruh halaman berjalan mandiri tanpa backend, kamera, atau simulator CARLA.
+By default `.env.development` enables **mock mode** (`VITE_MOCK_MODE=true`) so every page runs
+standalone without a backend, cameras, or the CARLA simulator.
 
-## Script
+## Scripts
 
-| Script | Deskripsi |
+| Script | Description |
 | --- | --- |
-| `bun run dev` | Jalankan dev server (mock aktif) |
-| `bun run build` | Typecheck (`tsc -b`) + production build ke `dist/` |
-| `bun run build:mock` | Build dengan mock mode (untuk demo/preview) |
-| `bun run preview` | Preview hasil build |
-| `bun run test` | Unit/integration test (Vitest + RTL) |
-| `bun run test:e2e` | End-to-end test (Playwright, butuh `bunx playwright install chromium`) |
+| `bun run dev` | Start the dev server (mock enabled) |
+| `bun run build` | Typecheck (`tsc -b`) + production build to `dist/` |
+| `bun run build:mock` | Build with mock mode (for demo/preview) |
+| `bun run preview` | Preview the build output |
+| `bun run test` | Unit/integration tests (Vitest + RTL) |
+| `bun run test:e2e` | End-to-end tests (Playwright, requires `bunx playwright install chromium`) |
 | `bun run lint` | Biome lint + format check |
-| `bun run check:prod` | CI guard: pastikan `VITE_MOCK_MODE` tidak `true` di env production |
-| `bun run deploy` | Build mock + deploy ke Cloudflare Pages (Wrangler) |
+| `bun run check:prod` | CI guard: ensure `VITE_MOCK_MODE` is not `true` in the production env |
+| `bun run deploy` | Mock build + deploy to Cloudflare Pages (Wrangler) |
 
 ## Environment Variables
 
-| Variable | Contoh | Deskripsi |
+| Variable | Example | Description |
 | --- | --- | --- |
-| `VITE_API_BASE_URL` | `/api/v1` | Base URL API backend |
-| `VITE_MOCK_MODE` | `true` / `false` | Aktifkan mock transport in-memory (dev/demo saja) |
-| `VITE_APP_TITLE` | `Marshal Control Tower` | Judul aplikasi |
-| `VITE_POLL_INTERVAL_MS` | `5000` | Interval polling data aktif (ms) |
+| `VITE_API_BASE_URL` | `/api/v1` | Backend API base URL |
+| `VITE_MOCK_MODE` | `true` / `false` | Enable the in-memory mock transport (dev/demo only) |
+| `VITE_APP_TITLE` | `Marshal Control Tower` | Application title |
+| `VITE_POLL_INTERVAL_MS` | `5000` | Active data polling interval (ms) |
 
-> **Mock mode tidak dapat aktif di production.** `src/lib/env.ts` memaksa `MOCK_MODE=false`
-> ketika `import.meta.env.PROD`, dan `bun run check:prod` mencegahnya lolos ke build.
+> **Mock mode cannot be enabled in production.** `src/lib/env.ts` forces `MOCK_MODE=false`
+> when `import.meta.env.PROD`, and `bun run check:prod` prevents it from reaching a build.
 
-## Arsitektur Singkat
+## Architecture at a Glance
 
-- `src/routes/` — file-based routing TanStack Router (Overview, Yard, Cars, Actions,
+- `src/routes/` — TanStack Router file-based routing (Overview, Yard, Cars, Actions,
   Assistance, Quality, Test Lab).
-- `src/lib/api-client.ts` — HTTP client bertipe: base URL dari env, credential/cookie,
-  timeout `AbortController`, normalisasi error HTTP, validasi Zod.
-- `src/lib/api.ts` — lapisan endpoint bertipe (Zod schema per response).
+- `src/lib/api-client.ts` — typed HTTP client: base URL from env, credentials/cookies,
+  `AbortController` timeout, HTTP error normalization, Zod validation.
+- `src/lib/api.ts` — typed endpoint layer (Zod schema per response).
 - `src/lib/use-event-stream.ts` — SSE (`/events`) via `EventSource`, auto-reconnect;
-  di mock mode memakai event simulator.
-- `src/lib/mock/` — transport mock in-memory: fixtures konsisten, handler REST, job engine,
-  simulator event 7 flow, dan simulator kamera canvas.
+  uses the event simulator in mock mode.
+- `src/lib/mock/` — in-memory mock transport: consistent fixtures, REST handlers, job engine,
+  7-flow event simulator, and canvas camera simulator.
 - `src/lib/stores/` — Zustand: `auth`, `app`, `event-log`, `camera`.
-- `src/components/` — primitives UI (`ui/`), komponen bersama (`common/`), domain (`domain/`),
-  dan layout (`layout/`).
+- `src/components/` — UI primitives (`ui/`), shared components (`common/`), domain (`domain/`),
+  and layout (`layout/`).
 
-## Aturan Keputusan Manusia
+## Human Decision Rules
 
-- Actor selalu berasal dari sesi (`useAuthStore`), tidak pernah dari input teks.
-- Opsi assistance hanya dari backend; rekomendasi AI tidak di-pre-select.
-- Aksi sensitif memerlukan konfirmasi dan di-guard role di UI (backend tetap memverifikasi).
-- Media privat hanya diakses via `GET /api/v1/media/{id}`, dengan fallback bila kedaluwarsa.
+- The actor always comes from the session (`useAuthStore`), never from text input.
+- Assistance options come only from the backend; AI recommendations are not pre-selected.
+- Sensitive actions require confirmation and are role-guarded in the UI (the backend still verifies).
+- Private media is accessed only via `GET /api/v1/media/{id}`, with a fallback when it expires.
 
 ## Deployment
 
 ### Cloudflare Pages (Demo / Preview, mock mode)
 
-Lihat panduan lengkap di [`docs/deployment-cloudflare.md`](docs/deployment-cloudflare.md).
-Ringkas:
+See the full guide at [`docs/deployment-cloudflare.md`](docs/deployment-cloudflare.md).
+In short:
 
 ```bash
 VITE_MOCK_MODE=true bun run build
 bunx wrangler pages deploy dist --project-name=marshal-fe
 ```
 
-`public/_redirects` (`/* /index.html 200`) menangani deep-link SPA, dan `public/_headers`
-mengatur security/cache header.
+`public/_redirects` (`/* /index.html 200`) handles SPA deep links, and `public/_headers`
+sets security/cache headers.
 
 ### Self-hosted (Nginx / Docker)
 
-Bangun tanpa mock dan arahkan `VITE_API_BASE_URL` ke backend:
+Build without mock and point `VITE_API_BASE_URL` at the backend:
 
 ```bash
 VITE_MOCK_MODE=false VITE_API_BASE_URL=https://api.example.com bun run build
 ```
 
-Contoh Nginx (SPA fallback + reverse proxy API) tersedia di
-[`deploy/nginx.conf`](deploy/nginx.conf). Aset ber-hash di-cache `immutable`, `index.html`
-`no-cache`.
+An Nginx example (SPA fallback + API reverse proxy) is available at
+[`deploy/nginx.conf`](deploy/nginx.conf). Hashed assets are cached `immutable`, `index.html`
+is `no-cache`.
 
 ## Testing
 
-- **Unit/component & integration** (Vitest + RTL): status badge, option radio group (tanpa
-  pre-select), dialog konfirmasi (anti double-submit), evidence viewer fallback, job polling,
-  dan mock transport (filter/validasi/mutasi).
-- **End-to-end** (Playwright): 4 journey kritis — keputusan assistance, konfirmasi rework +
-  mark done, pembuatan/review skenario, serta evaluasi release dengan approval ter-gate.
+- **Unit/component & integration** (Vitest + RTL): status badge, option radio group (no
+  pre-select), confirmation dialog (anti double-submit), evidence viewer fallback, job polling,
+  and mock transport (filter/validation/mutation).
+- **End-to-end** (Playwright): 4 critical journeys — assistance decision, rework confirmation +
+  mark done, scenario create/review, and release evaluation with gated approval.

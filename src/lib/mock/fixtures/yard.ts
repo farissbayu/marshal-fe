@@ -3,10 +3,10 @@ import type { MapPoint, ReworkBay, Zone } from "@/lib/schemas";
 export function zonesFixture(): Zone[] {
   return [
     { zone: "ZONE-A", name: "Staging A", closed: false },
-    { zone: "ZONE-B", name: "Staging B", closed: true, reason: "Perawatan lantai" },
+    { zone: "ZONE-B", name: "Staging B", closed: true, reason: "Floor maintenance" },
     { zone: "ZONE-C", name: "Holding C", closed: false },
-    { zone: "GATE-IN", name: "Gate Masuk", closed: false },
-    { zone: "GATE-OUT", name: "Gate Keluar", closed: false },
+    { zone: "GATE-IN", name: "Gate In", closed: false },
+    { zone: "GATE-OUT", name: "Gate Out", closed: false },
   ];
 }
 
@@ -57,8 +57,8 @@ export function baysFixture(): ReworkBay[] {
 
 export function mapFixture(): MapPoint[] {
   return [
-    { id: "GATE-IN", name: "Gate Masuk", kind: "gate", x: 8, y: 50 },
-    { id: "GATE-OUT", name: "Gate Keluar", kind: "gate", x: 92, y: 50 },
+    { id: "GATE-IN", name: "Gate In", kind: "gate", x: 8, y: 50 },
+    { id: "GATE-OUT", name: "Gate Out", kind: "gate", x: 92, y: 50 },
     { id: "ZONE-A", name: "Staging A", kind: "zone", x: 30, y: 25 },
     { id: "ZONE-B", name: "Staging B", kind: "zone", x: 30, y: 75 },
     { id: "ZONE-C", name: "Holding C", kind: "zone", x: 55, y: 50 },

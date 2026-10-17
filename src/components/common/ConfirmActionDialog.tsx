@@ -29,7 +29,7 @@ export function ConfirmActionDialog({
   title,
   description,
   confirmLabel,
-  cancelLabel = "Batal",
+  cancelLabel = "Cancel",
   onConfirm,
   pending,
   variant = "default",

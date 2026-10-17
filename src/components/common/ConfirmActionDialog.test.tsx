@@ -11,13 +11,13 @@ describe("ConfirmActionDialog", () => {
       <ConfirmActionDialog
         open
         onOpenChange={() => {}}
-        title="Konfirmasi"
-        confirmLabel="Kirim"
+        title="Confirmation"
+        confirmLabel="Send"
         onConfirm={onConfirm}
       />,
     );
     expect(onConfirm).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Kirim" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
@@ -26,12 +26,12 @@ describe("ConfirmActionDialog", () => {
       <ConfirmActionDialog
         open
         onOpenChange={() => {}}
-        title="Konfirmasi"
-        confirmLabel="Kirim"
+        title="Confirmation"
+        confirmLabel="Send"
         onConfirm={() => {}}
         pending
       />,
     );
-    expect(screen.getByRole("button", { name: /Kirim/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Send/ })).toBeDisabled();
   });
 });

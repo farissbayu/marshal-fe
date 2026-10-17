@@ -47,7 +47,7 @@ export function getCar(req: MockRequest): CarDetail {
   const { db } = req;
   const vin = req.params.vin;
   const car = db.cars.find((c) => c.vin === vin);
-  if (!car) fail(404, `Kendaraan ${vin} tidak ditemukan.`, "car_not_found");
+  if (!car) fail(404, `Vehicle ${vin} not found.`, "car_not_found");
   return carDetailFixture(car, db.now);
 }
 
@@ -57,7 +57,7 @@ export function getMap(req: MockRequest): { points: MapPoint[] } {
 
 function findCar(req: MockRequest): CarSummary {
   const car = req.db.cars.find((c) => c.vin === req.params.vin);
-  if (!car) fail(404, `Kendaraan ${req.params.vin} tidak ditemukan.`, "car_not_found");
+  if (!car) fail(404, `Vehicle ${req.params.vin} not found.`, "car_not_found");
   return car;
 }
 
@@ -65,9 +65,8 @@ export function sendMission(req: MockRequest) {
   const car = findCar(req);
   const destination = strQuery(req.body.destination);
   const reason = strQuery(req.body.reason);
-  if (!destination) fail(422, "Tujuan misi wajib diisi.", "validation_error");
-  if (car.state === "held")
-    fail(409, "Kendaraan sedang di-hold. Resume terlebih dahulu.", "car_held");
+  if (!destination) fail(422, "Mission destination is required.", "validation_error");
+  if (car.state === "held") fail(409, "Vehicle is on hold. Resume it first.", "car_held");
   car.mission = `MISSION-${destination.toUpperCase()}`;
   car.state = "driving";
   car.updated_at = new Date().toISOString();
@@ -83,8 +82,8 @@ export function sendMission(req: MockRequest) {
 export function holdCar(req: MockRequest) {
   const car = findCar(req);
   const reason = strQuery(req.body.reason);
-  if (!reason) fail(422, "Alasan hold wajib diisi.", "validation_error");
-  if (car.state === "held") fail(409, "Kendaraan sudah dalam status held.", "already_held");
+  if (!reason) fail(422, "Hold reason is required.", "validation_error");
+  if (car.state === "held") fail(409, "Vehicle is already in held status.", "already_held");
   car.state = "held";
   if (!car.flags.includes("held")) car.flags.push("held");
   car.updated_at = new Date().toISOString();
@@ -93,7 +92,7 @@ export function holdCar(req: MockRequest) {
 
 export function resumeCar(req: MockRequest) {
   const car = findCar(req);
-  if (car.state !== "held") fail(409, "Kendaraan tidak sedang di-hold.", "not_held");
+  if (car.state !== "held") fail(409, "Vehicle is not on hold.", "not_held");
   car.state = "waiting_dispatch";
   car.flags = car.flags.filter((f) => f !== "held");
   car.updated_at = new Date().toISOString();
@@ -103,12 +102,12 @@ export function resumeCar(req: MockRequest) {
 export function updateTruckEta(req: MockRequest) {
   const { db } = req;
   const truck = db.trucks.find((t) => t.truck_id === req.params.truck_id);
-  if (!truck) fail(404, `Truck ${req.params.truck_id} tidak ditemukan.`, "truck_not_found");
+  if (!truck) fail(404, `Truck ${req.params.truck_id} not found.`, "truck_not_found");
   const actualEta = strQuery(req.body.eta);
-  if (!actualEta) fail(422, "ETA aktual wajib diisi.", "validation_error");
+  if (!actualEta) fail(422, "Actual ETA is required.", "validation_error");
   const scheduled = truck.scheduled_eta ? new Date(truck.scheduled_eta).getTime() : null;
   const actual = new Date(actualEta).getTime();
-  if (Number.isNaN(actual)) fail(422, "Format ETA tidak valid.", "validation_error");
+  if (Number.isNaN(actual)) fail(422, "Invalid ETA format.", "validation_error");
   truck.actual_eta = new Date(actual).toISOString();
   truck.delay_minutes = scheduled ? Math.round((actual - scheduled) / 60000) : 0;
   return {
@@ -123,7 +122,7 @@ export function updateTruckEta(req: MockRequest) {
 export function loadTruck(req: MockRequest) {
   const { db } = req;
   const truck = db.trucks.find((t) => t.truck_id === req.params.truck_id);
-  if (!truck) fail(404, `Truck ${req.params.truck_id} tidak ditemukan.`, "truck_not_found");
+  if (!truck) fail(404, `Truck ${req.params.truck_id} not found.`, "truck_not_found");
   const loaded: string[] = [];
   const rejected: Array<{ vin: string; reason: string }> = [];
   for (const vin of truck.assigned_vins) {
@@ -142,7 +141,7 @@ export function loadTruck(req: MockRequest) {
     }
   }
   if (loaded.length === 0 && rejected.length > 0) {
-    fail(409, "Tidak ada kendaraan yang memenuhi syarat untuk dimuat.", "load_blocked");
+    fail(409, "No vehicles are eligible for loading.", "load_blocked");
   }
   return { truck_id: truck.truck_id, loaded, rejected };
 }
@@ -150,9 +149,9 @@ export function loadTruck(req: MockRequest) {
 export function setZoneClosure(req: MockRequest): Zone {
   const { db } = req;
   const zone = db.zones.find((z) => z.zone === req.params.zone);
-  if (!zone) fail(404, `Zone ${req.params.zone} tidak ditemukan.`, "zone_not_found");
+  if (!zone) fail(404, `Zone ${req.params.zone} not found.`, "zone_not_found");
   if (typeof req.body.closed !== "boolean")
-    fail(422, "Field 'closed' wajib boolean.", "validation_error");
+    fail(422, "Field 'closed' must be a boolean.", "validation_error");
   zone.closed = req.body.closed;
   zone.reason = strQuery(req.body.reason) ?? null;
   return zone;
@@ -164,6 +163,6 @@ export function getReworkBays(req: MockRequest) {
 
 export function getTruckById(req: MockRequest): Truck {
   const truck = req.db.trucks.find((t) => t.truck_id === req.params.truck_id);
-  if (!truck) fail(404, `Truck ${req.params.truck_id} tidak ditemukan.`, "truck_not_found");
+  if (!truck) fail(404, `Truck ${req.params.truck_id} not found.`, "truck_not_found");
   return truck;
 }

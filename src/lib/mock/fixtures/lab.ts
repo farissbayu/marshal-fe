@@ -6,7 +6,7 @@ export function testRequestsFixture(now: number): TestRequest[] {
     {
       request_id: "TRQ-001",
       source: "case-01",
-      text: "Uji skenario obstacle tidak teridentifikasi dengan pejalan kaki di sisi kanan.",
+      text: "Test scenario for an unidentified obstacle with a pedestrian on the right side.",
       created_at: iso(20, now),
       status: "processing",
       scenario_id: null,
@@ -14,7 +14,7 @@ export function testRequestsFixture(now: number): TestRequest[] {
     {
       request_id: "TRQ-002",
       source: "manual",
-      text: "Tambah variasi hujan lebat pada uji pengereman darurat.",
+      text: "Add a heavy rain variation to the emergency braking test.",
       created_at: iso(55, now),
       status: "new",
       scenario_id: null,
@@ -22,7 +22,7 @@ export function testRequestsFixture(now: number): TestRequest[] {
     {
       request_id: "TRQ-003",
       source: "case-02",
-      text: "Skenario forklift melintas di jalur keluar gudang.",
+      text: "Scenario of a forklift crossing the warehouse exit lane.",
       created_at: iso(140, now),
       status: "converted",
       scenario_id: "S001",
@@ -38,7 +38,7 @@ export function scenariosFixture(now: number): Scenario[] {
       status: "pending_review",
       tags: ["edge", "obstacle", "human"],
       owner: "user-engineer-01",
-      summary: "Forklift melintas saat kendaraan keluar gudang.",
+      summary: "Forklift crossing while the vehicle exits the warehouse.",
       created_at: iso(130, now),
     },
     {
@@ -47,7 +47,7 @@ export function scenariosFixture(now: number): Scenario[] {
       status: "approved",
       tags: ["regression", "obstacle"],
       owner: "user-engineer-01",
-      summary: "Obstacle statis di depan kendaraan pada jalur sempit.",
+      summary: "Static obstacle ahead of the vehicle in a narrow lane.",
       created_at: iso(300, now),
     },
     {
@@ -56,7 +56,7 @@ export function scenariosFixture(now: number): Scenario[] {
       status: "rejected",
       tags: ["night", "rain"],
       owner: "user-engineer-01",
-      summary: "Pengereman darurat malam hari saat hujan lebat.",
+      summary: "Emergency braking at night in heavy rain.",
       created_at: iso(400, now),
     },
     {
@@ -65,7 +65,7 @@ export function scenariosFixture(now: number): Scenario[] {
       status: "dry_run_running",
       tags: ["parking"],
       owner: "user-engineer-01",
-      summary: "Parkir paralel di area sempit dengan kendaraan dinamis.",
+      summary: "Parallel parking in a tight area with a dynamic vehicle.",
       created_at: iso(15, now),
     },
     {
@@ -74,7 +74,7 @@ export function scenariosFixture(now: number): Scenario[] {
       status: "runnable",
       tags: ["edge", "dynamic"],
       owner: "user-engineer-01",
-      summary: "Bypass kendaraan dinamis saat jalur utama terblokir.",
+      summary: "Bypass a dynamic vehicle when the main lane is blocked.",
       created_at: iso(500, now),
     },
   ];
@@ -94,7 +94,7 @@ export function scenarioDetailsFixture(now: number): Record<string, ScenarioDeta
       },
       validator_notes: [
         { severity: "ok", message: "Schema valid" },
-        { severity: "warning", message: "Waypoint jarak terlalu pendek (2.0m < 2.5m)" },
+        { severity: "warning", message: "Waypoint distance too short (2.0m < 2.5m)" },
       ],
       dry_run_metrics: { distance_m: 42, steps: 15, collisions: 0, duration_s: 18 },
       review: null,
@@ -115,7 +115,7 @@ export function scenarioDetailsFixture(now: number): Record<string, ScenarioDeta
       review: {
         decision: "approved",
         actor_id: "user-engineer-01",
-        note: "Siap dijalankan",
+        note: "Ready to run",
         at: iso(280, now),
       },
       adversarial_result: null,
@@ -132,12 +132,12 @@ export function scenarioDetailsFixture(now: number): Record<string, ScenarioDeta
       },
       validator_notes: [
         { severity: "ok", message: "Schema valid" },
-        { severity: "error", message: "Parameter 'night' bertentangan dengan 'heavy_rain' preset" },
+        { severity: "error", message: "Parameter 'night' conflicts with the 'heavy_rain' preset" },
       ],
       review: {
         decision: "rejected",
         actor_id: "user-engineer-01",
-        note: "Preset cuaca konflik",
+        note: "Weather preset conflict",
         at: iso(380, now),
       },
       adversarial_result: null,
@@ -157,7 +157,7 @@ export function scenarioDetailsFixture(now: number): Record<string, ScenarioDeta
       review: {
         decision: "approved",
         actor_id: "user-engineer-01",
-        note: "Lulus dry-run",
+        note: "Passed dry-run",
         at: iso(480, now),
       },
       adversarial_result: {
@@ -283,15 +283,12 @@ export function scenarioDetailsFixture(now: number): Record<string, ScenarioDeta
         failure_report: {
           variant_id: "S005-v17",
           summary:
-            "S005-v17 gagal: mobil berhenti pada jarak 0.6 m dari pekerja di malam hari di balik tumpukan palet (batas 1.5 m).",
-          conditions:
-            "Malam hari (night), pemicu pekerja 7 m, occluder pallet_stack, kecepatan ego 10 km/h.",
+            "S005-v17 failed: car stopped 0.6 m from worker at night behind a pallet stack (1.5 m limit).",
+          conditions: "Night, worker trigger 7 m, occluder pallet_stack, ego speed 10 km/h.",
           measured_gap_m: 0.6,
           limit_gap_m: 1.5,
-          likely_cause:
-            "Deteksi terlambat dalam kondisi cahaya rendah di balik penghalang tinggi (pallet stack).",
-          suggested_fix:
-            "Turunkan kecepatan ego di area finishing_corner saat malam hari menjadi 5 km/h.",
+          likely_cause: "Late detection in low light behind a tall occluder (pallet stack).",
+          suggested_fix: "Reduce ego speed in the finishing_corner area at night to 5 km/h.",
           clip_id: "media-005",
         },
       },

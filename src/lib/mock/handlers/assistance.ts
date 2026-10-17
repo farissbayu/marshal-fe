@@ -19,7 +19,7 @@ export function getAssistanceCases(req: MockRequest) {
 
 export function getAssistanceCase(req: MockRequest): AssistanceCase {
   const found = req.db.assistance.find((c) => c.case_id === req.params.case_id);
-  if (!found) fail(404, `Case ${req.params.case_id} tidak ditemukan.`, "case_not_found");
+  if (!found) fail(404, `Case ${req.params.case_id} not found.`, "case_not_found");
   return found;
 }
 
@@ -37,24 +37,24 @@ export function getAssistanceKpis(req: MockRequest): AssistanceKpis {
     open: cases.filter((c) => c.status !== "RESOLVED").length,
     resolved: resolved.length,
     avg_latency_minutes: Math.round(avg * 10) / 10,
-    period: "shift-ini",
+    period: "this shift",
   };
 }
 
 export function decideAssistance(req: MockRequest) {
   const found = req.db.assistance.find((c) => c.case_id === req.params.case_id);
-  if (!found) fail(404, `Case ${req.params.case_id} tidak ditemukan.`, "case_not_found");
+  if (!found) fail(404, `Case ${req.params.case_id} not found.`, "case_not_found");
   if (found.status === "RESOLVED") {
-    fail(409, "Case sudah diselesaikan. Muat ulang data.", "case_already_resolved");
+    fail(409, "Case already resolved. Reload data.", "case_already_resolved");
   }
   const actorId = strQuery(req.body.actor_id);
   const actor = requireActor(req.db, actorId);
   const option = strQuery(req.body.option);
-  if (!option) fail(422, "Opsi keputusan wajib dipilih.", "validation_error");
+  if (!option) fail(422, "A decision option is required.", "validation_error");
 
   const allowed = found.options.some((o) => o.id === option);
   if (!allowed) {
-    fail(422, `Opsi '${option}' tidak ditawarkan oleh sistem.`, "option_not_allowed");
+    fail(422, `Option '${option}' is not offered by the system.`, "option_not_allowed");
   }
 
   found.status = "RESOLVED";
@@ -62,7 +62,7 @@ export function decideAssistance(req: MockRequest) {
   found.resolved_by = actor.actor_id;
   found.resolved_at = new Date().toISOString();
   const chosen = found.options.find((o) => o.id === option);
-  found.result = `Keputusan '${chosen?.label ?? option}' dikirim. Kendaraan dilanjutkan sesuai opsi.`;
+  found.result = `Decision '${chosen?.label ?? option}' sent. Vehicle resumes per the selected option.`;
 
   return {
     case_id: found.case_id,
@@ -72,4 +72,36 @@ export function decideAssistance(req: MockRequest) {
     resolved_at: found.resolved_at,
     result: found.result,
   };
+}
+
+export function ingestAssistanceCase(req: MockRequest): AssistanceCase {
+  const vin = strQuery(req.body.vin) || "VIN-NEW";
+  const location = strQuery(req.body.location) || "unknown";
+  const situation = strQuery(req.body.situation) || "Obstacle reported";
+  const rawOptions = Array.isArray(req.body.options) ? req.body.options : ["Wait for clearance", "Reroute"];
+  const newCaseId = `case-${req.db.assistance.length + 1}`;
+  const options = rawOptions.map((opt: string, i: number) => ({
+    id: `opt-${i + 1}`,
+    label: opt,
+    risk: (i === 0 ? "low" : i === 1 ? "medium" : "high") as "low" | "medium" | "high",
+    reason: `Candidate action ${i + 1}`,
+  }));
+
+  const newCase: AssistanceCase = {
+    case_id: newCaseId,
+    vin,
+    location,
+    situation,
+    status: "OPEN",
+    opened_at: new Date().toISOString(),
+    moving_people_or_equipment: false,
+    recommendation: options[0] ? { option_id: options[0].id, confidence: 0.85 } : null,
+    options,
+    media_ids: [],
+    detected_objects: [],
+    clip_uri: strQuery(req.body.clip_uri) || null,
+  };
+
+  req.db.assistance.unshift(newCase);
+  return newCase;
 }

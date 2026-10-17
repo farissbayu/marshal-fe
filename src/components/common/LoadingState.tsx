@@ -15,7 +15,7 @@ export function LoadingCards({ count = 4 }: { count?: number }) {
       className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
       role="status"
       aria-busy="true"
-      aria-label="Memuat data"
+      aria-label="Loading data"
     >
       {Array.from({ length: count }).map((_, i) => (
         <Card key={i}>
@@ -31,7 +31,7 @@ export function LoadingCards({ count = 4 }: { count?: number }) {
 
 export function LoadingDetail() {
   return (
-    <div className="space-y-4" role="status" aria-busy="true" aria-label="Memuat detail">
+    <div className="space-y-4" role="status" aria-busy="true" aria-label="Loading details">
       <Skeleton className="h-8 w-64" />
       <Skeleton className="h-40 w-full" />
       <Skeleton className="h-24 w-full" />

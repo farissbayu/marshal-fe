@@ -42,7 +42,7 @@ export function DialogContent({
         {children}
         {!hideClose && (
           <DialogPrimitive.Close
-            aria-label="Tutup dialog"
+            aria-label="Close dialog"
             className="absolute right-4 top-4 rounded-sm p-1 text-fg-subtle transition-colors hover:bg-surface-3 hover:text-fg"
           >
             <X className="size-4" />

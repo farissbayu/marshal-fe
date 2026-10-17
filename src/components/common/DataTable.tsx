@@ -61,7 +61,7 @@ export function DataTable<T>({
   if (data.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-surface">
-        {empty ?? <p className="px-4 py-8 text-center text-sm text-fg-muted">Tidak ada data.</p>}
+        {empty ?? <p className="px-4 py-8 text-center text-sm text-fg-muted">No data.</p>}
       </div>
     );
   }
@@ -124,13 +124,13 @@ export function DataTable<T>({
       {pagination && pagination.last_page > 1 && (
         <div className="flex items-center justify-between gap-2 text-xs text-fg-muted">
           <span className="tabular">
-            Halaman {pagination.page} / {pagination.last_page} · {pagination.total} item
+            Page {pagination.page} / {pagination.last_page} · {pagination.total} items
           </span>
           <div className="flex items-center gap-1">
             <Button
               size="icon-sm"
               variant="secondary"
-              aria-label="Halaman sebelumnya"
+              aria-label="Previous page"
               disabled={pagination.page <= 1}
               onClick={() => pagination.onPageChange(pagination.page - 1)}
             >
@@ -139,7 +139,7 @@ export function DataTable<T>({
             <Button
               size="icon-sm"
               variant="secondary"
-              aria-label="Halaman berikutnya"
+              aria-label="Next page"
               disabled={pagination.page >= pagination.last_page}
               onClick={() => pagination.onPageChange(pagination.page + 1)}
             >

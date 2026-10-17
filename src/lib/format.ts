@@ -1,4 +1,4 @@
-const TIME_FORMAT = new Intl.DateTimeFormat("id-ID", {
+const TIME_FORMAT = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
@@ -6,7 +6,7 @@ const TIME_FORMAT = new Intl.DateTimeFormat("id-ID", {
   timeZone: "UTC",
 });
 
-const DATE_TIME_FORMAT = new Intl.DateTimeFormat("id-ID", {
+const DATE_TIME_FORMAT = new Intl.DateTimeFormat("en-GB", {
   dateStyle: "short",
   timeStyle: "medium",
   timeZone: "UTC",
@@ -27,13 +27,13 @@ export function formatRelative(iso: string | number | Date, now = Date.now()): s
   if (!date) return "-";
   const diffMs = now - date.getTime();
   const mins = Math.floor(Math.abs(diffMs) / 60000);
-  const suffix = diffMs >= 0 ? "lalu" : "lagi";
-  if (mins < 1) return "baru saja";
-  if (mins < 60) return `${mins} mnt ${suffix}`;
+  const suffix = diffMs >= 0 ? "ago" : "left";
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ${suffix}`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} jam ${suffix}`;
+  if (hours < 24) return `${hours}h ${suffix}`;
   const days = Math.floor(hours / 24);
-  return `${days} hari ${suffix}`;
+  return `${days}d ${suffix}`;
 }
 
 export function waitingMinutes(iso: string, now = Date.now()): number {
@@ -43,7 +43,7 @@ export function waitingMinutes(iso: string, now = Date.now()): number {
 }
 
 export function formatNumber(value: number, unit?: string): string {
-  const formatted = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(value);
+  const formatted = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 }).format(value);
   return unit
     ? `${formatted}${unit.startsWith("%") || unit.startsWith("x") ? "" : " "}${unit}`
     : formatted;

@@ -4,9 +4,6 @@ import { z } from "zod";
  * Shared primitives
  * ------------------------------------------------------------------ */
 
-export const roleSchema = z.enum(["supervisor", "inspector", "worker", "engineer"]);
-export type Role = z.infer<typeof roleSchema>;
-
 export const severitySchema = z.enum(["info", "good", "warn", "bad"]);
 export type Severity = z.infer<typeof severitySchema>;
 
@@ -59,9 +56,7 @@ export type Readiness = z.infer<typeof readinessSchema>;
 export const actorSchema = z.object({
   actor_id: z.string(),
   display_name: z.string(),
-  role: roleSchema,
   plant: z.string().default("Plant 01"),
-  permissions: z.array(z.string()).default([]),
 });
 export type Actor = z.infer<typeof actorSchema>;
 

@@ -19,13 +19,13 @@ function NotFound() {
     <div className="flex min-h-96 flex-col items-center justify-center gap-3 text-center">
       <Compass className="size-8 text-fg-subtle" aria-hidden />
       <div>
-        <h1 className="text-lg font-semibold text-fg">Halaman tidak ditemukan</h1>
+        <h1 className="text-lg font-semibold text-fg">Page not found</h1>
         <p className="text-sm text-fg-muted">
-          Route yang Anda tuju tidak tersedia di control tower.
+          The route you are looking for is not available in the control tower.
         </p>
       </div>
       <Button asChild variant="secondary">
-        <Link to="/overview">Kembali ke Overview</Link>
+        <Link to="/">Back to Dashboard</Link>
       </Button>
     </div>
   );

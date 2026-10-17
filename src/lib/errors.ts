@@ -68,16 +68,16 @@ export function kindFromStatus(status: number): ApiErrorKind {
 export function apiErrorFromStatus(status: number, body?: ApiErrorBody): ApiError {
   const kind = kindFromStatus(status);
   const fallback: Record<ApiErrorKind, string> = {
-    unauthorized: "Sesi tidak valid. Silakan masuk kembali.",
-    forbidden: "Anda tidak memiliki izin untuk aksi ini.",
-    not_found: "Resource tidak ditemukan.",
-    conflict: "Terjadi konflik state. Muat ulang data terbaru.",
-    validation: "Input tidak valid.",
-    unavailable: "Dependency backend tidak tersedia.",
-    timeout: "Permintaan melebihi batas waktu.",
-    network: "Tidak dapat menghubungi server.",
-    server: "Terjadi kesalahan pada server.",
-    unknown: "Terjadi kesalahan yang tidak diketahui.",
+    unauthorized: "Session invalid. Please sign in again.",
+    forbidden: "You are not allowed to perform this action.",
+    not_found: "Resource not found.",
+    conflict: "State conflict. Reload the latest data.",
+    validation: "Invalid input.",
+    unavailable: "Backend dependency unavailable.",
+    timeout: "Request exceeded the time limit.",
+    network: "Unable to reach the server.",
+    server: "A server error occurred.",
+    unknown: "An unknown error occurred.",
   };
   return new ApiError({
     status,
@@ -93,7 +93,7 @@ export function zodErrorToApiError(error: z.ZodError, context: string): ApiError
     status: 0,
     kind: "unknown",
     code: "schema_mismatch",
-    message: `Response tidak sesuai kontrak untuk ${context}.`,
+    message: `Response does not match the contract for ${context}.`,
     details: error.issues,
   });
 }
@@ -101,5 +101,5 @@ export function zodErrorToApiError(error: z.ZodError, context: string): ApiError
 export function getErrorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
-  return "Terjadi kesalahan yang tidak diketahui.";
+  return "An unknown error occurred.";
 }

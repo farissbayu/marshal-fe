@@ -46,7 +46,6 @@ function authHeaders(): Record<string, string> {
   const { token, actor } = useAuthStore.getState();
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (actor?.role) headers["X-Actor-Role"] = actor.role;
   if (actor?.actor_id) headers["X-Actor-Id"] = actor.actor_id;
   return headers;
 }
@@ -96,13 +95,13 @@ async function realRequest<T>(
       throw new ApiError({
         status: 0,
         kind: "timeout",
-        message: "Permintaan melebihi batas waktu.",
+        message: "Request exceeded the time limit.",
       });
     }
     if (error instanceof DOMException && error.name === "AbortError") {
       throw error;
     }
-    throw new ApiError({ status: 0, kind: "network", message: "Tidak dapat menghubungi server." });
+    throw new ApiError({ status: 0, kind: "network", message: "Unable to reach the server." });
   } finally {
     clearTimeout(timer);
   }

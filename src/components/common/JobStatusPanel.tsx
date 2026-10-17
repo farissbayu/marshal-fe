@@ -52,7 +52,7 @@ export function JobStatusPanel({
       <div className={cn("rounded-lg border border-warning/40 bg-warning/10 p-3", className)}>
         <div className="flex items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-medium text-fg">Status pekerjaan tidak diketahui</p>
+            <p className="text-sm font-medium text-fg">Job status unknown</p>
             <p className="text-xs text-fg-muted">{getErrorMessage(query.error)}</p>
           </div>
           <Button size="sm" variant="secondary" onClick={() => query.refetch()}>
@@ -82,14 +82,14 @@ export function JobStatusPanel({
       {job?.status === "failed" && job.error && <p className="text-xs text-danger">{job.error}</p>}
       {timedOut && (
         <div className="flex items-center justify-between gap-2 rounded border border-warning/40 bg-warning/10 p-2">
-          <p className="text-xs text-fg-muted">Pekerjaan melebihi batas waktu.</p>
+          <p className="text-xs text-fg-muted">Job exceeded the time limit.</p>
           <Button size="sm" variant="secondary" onClick={() => query.refetch()}>
             <RefreshCw className="size-3.5" /> Refresh
           </Button>
         </div>
       )}
       <p className="text-[10px] text-fg-subtle" role="status" aria-live="polite">
-        {pollingEnabled ? "Polling aktif (3 dtk)" : "Polling dijeda (tab tidak aktif)"}
+        {pollingEnabled ? "Polling active (3s)" : "Polling paused (tab inactive)"}
       </p>
     </div>
   );

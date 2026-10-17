@@ -57,7 +57,7 @@ export function VehicleActions({ car, compact }: { car: CarSummary; compact?: bo
     <div className="flex flex-wrap items-center gap-1.5">
       {car.state !== "held" && car.state !== "driving" && (
         <Button size="sm" variant="secondary" onClick={() => setAction("mission")}>
-          <Send className="size-3.5" /> Misi
+          <Send className="size-3.5" /> Mission
         </Button>
       )}
       {car.state !== "held" && (
@@ -91,14 +91,14 @@ export function VehicleActions({ car, compact }: { car: CarSummary; compact?: bo
       <ConfirmActionDialog
         open={action === "resume"}
         onOpenChange={(o) => !o && setAction(null)}
-        title="Lanjutkan kendaraan?"
+        title="Resume vehicle?"
         description={
           <span>
-            Kendaraan <span className="font-mono text-fg">{car.vin}</span> akan dilepas dari status
-            held dan kembali ke antrean dispatch.
+            Vehicle <span className="font-mono text-fg">{car.vin}</span> will be released from held
+            status and returned to the dispatch queue.
           </span>
         }
-        confirmLabel="Lanjutkan"
+        confirmLabel="Resume"
         variant="success"
         pending={resume.isPending}
         onConfirm={() => resume.mutate()}
@@ -129,24 +129,24 @@ function MissionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Kirim misi kendaraan</DialogTitle>
+          <DialogTitle>Send vehicle mission</DialogTitle>
           <DialogDescription>
-            <span className="font-mono text-fg">{car.vin}</span> · lokasi sekarang {car.location}.
-            Backend tetap memvalidasi aksi terhadap state terkini.
+            <span className="font-mono text-fg">{car.vin}</span> · current location {car.location}.
+            The backend still validates the action against the latest state.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
-            <Label htmlFor="mission-dest">Tujuan</Label>
+            <Label htmlFor="mission-dest">Destination</Label>
             <Input
               id="mission-dest"
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
-              placeholder="mis. TRACK-1"
+              placeholder="e.g. TRACK-1"
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="mission-reason">Alasan (opsional)</Label>
+            <Label htmlFor="mission-reason">Reason (optional)</Label>
             <Textarea
               id="mission-reason"
               value={reason}
@@ -158,14 +158,14 @@ function MissionDialog({
         </div>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={pending}>
-            Batal
+            Cancel
           </Button>
           <Button
             disabled={pending || destination.trim().length === 0}
             onClick={() => onSubmit({ destination, reason: reason || undefined })}
           >
             {pending && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-            Konfirmasi misi
+            Confirm mission
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -195,15 +195,15 @@ function HoldDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Tahan kendaraan</DialogTitle>
+          <DialogTitle>Hold vehicle</DialogTitle>
           <DialogDescription>
-            Kendaraan <span className="font-mono text-fg">{car.vin}</span> akan masuk status held
-            sampai di-resume.
+            Vehicle <span className="font-mono text-fg">{car.vin}</span> will enter held status
+            until resumed.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
-            <Label htmlFor="hold-reason">Alasan</Label>
+            <Label htmlFor="hold-reason">Reason</Label>
             <Textarea
               id="hold-reason"
               value={reason}
@@ -212,7 +212,7 @@ function HoldDialog({
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="hold-duration">Durasi (menit, opsional)</Label>
+            <Label htmlFor="hold-duration">Duration (minutes, optional)</Label>
             <Input
               id="hold-duration"
               type="number"
@@ -225,7 +225,7 @@ function HoldDialog({
         </div>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={pending}>
-            Batal
+            Cancel
           </Button>
           <Button
             variant="warning"
@@ -238,7 +238,7 @@ function HoldDialog({
             }
           >
             {pending && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
-            Tahan kendaraan
+            Hold vehicle
           </Button>
         </DialogFooter>
       </DialogContent>

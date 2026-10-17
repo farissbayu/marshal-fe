@@ -44,7 +44,7 @@ export function reportsFixture(now: number): Record<string, Report> {
       confirmed_by: "user-supervisor-01",
       confirmed_at: iso(9, now),
       summary:
-        "Gagal inspeksi visual (Flow 3): Warna fisik Merah berbeda dengan build sheet (Biru), goresan pintu kiri, dan badge belakang hilang.",
+        "Visual inspection failed (Flow 3): Physical color Red differs from the build sheet (Blue), left door scratch, and missing rear badge.",
       open_findings: 3,
       visual_findings: [
         {
@@ -52,7 +52,7 @@ export function reportsFixture(now: number): Record<string, Report> {
           defect_type: "Scratch",
           size: "6 cm",
           confidence: 0.78,
-          observation: "Goresan 6 cm pada pintu belakang kiri (scratch rear left door).",
+          observation: "6 cm scratch on the rear left door.",
           media_id: "media-002",
         },
         {
@@ -60,7 +60,7 @@ export function reportsFixture(now: number): Record<string, Report> {
           defect_type: "Missing part",
           size: "Emblem missing",
           confidence: 0.95,
-          observation: "Badge emblem belakang tidak terpasang sesuai build sheet.",
+          observation: "Rear badge emblem not installed per build sheet.",
           media_id: "media-003",
         },
         {
@@ -68,7 +68,7 @@ export function reportsFixture(now: number): Record<string, Report> {
           defect_type: "Wrong variant",
           size: "Roof rails missing",
           confidence: 0.91,
-          observation: "Build sheet mencatat roof rails, unit fisik tidak terpasang.",
+          observation: "Build sheet lists roof rails, physical unit does not have them.",
           media_id: null,
         },
       ],
@@ -104,7 +104,7 @@ export function reportsFixture(now: number): Record<string, Report> {
       confirmed_by: null,
       confirmed_at: null,
       summary:
-        "Gagal inspeksi fungsional (Flow 4): Disagreement telemetri vs kamera pada lampu rem kiri (mati saat pedal ditekan).",
+        "Functional inspection failed (Flow 4): Telemetry vs camera disagreement on the left brake light (out when the pedal is pressed).",
       open_findings: 1,
       visual_findings: [],
       functional_failures: [
@@ -115,7 +115,7 @@ export function reportsFixture(now: number): Record<string, Report> {
           camera_result: "LEFT_LAMP_OUT (Fail)",
           confidence: 0.95,
           observation:
-            "DISAGREEMENT: Telemetri melaporkan sinyal rem aktif, kamera mendeteksi lampu rem kiri mati.",
+            "DISAGREEMENT: Telemetry reports the brake signal active, camera detects the left brake light out.",
           disagree: true,
           media_id: "media-004",
         },
@@ -140,7 +140,7 @@ export function reportsFixture(now: number): Record<string, Report> {
       verdict: "PASS",
       confirmed_by: "user-inspector-01",
       confirmed_at: iso(85, now),
-      summary: "Lolos inspeksi visual tanpa temuan.",
+      summary: "Passed visual inspection with no findings.",
       open_findings: 0,
       visual_findings: [],
       functional_failures: [],
@@ -153,7 +153,7 @@ export function reportsFixture(now: number): Record<string, Report> {
       verdict: "FAIL",
       confirmed_by: "user-supervisor-01",
       confirmed_at: iso(120, now),
-      summary: "Rework selesai, menunggu reinspection.",
+      summary: "Rework done, waiting for reinspection.",
       open_findings: 1,
       visual_findings: [
         {
@@ -161,7 +161,7 @@ export function reportsFixture(now: number): Record<string, Report> {
           defect_type: "Scratch",
           size: "10 cm",
           confidence: 0.8,
-          observation: "Goresan pintu kanan.",
+          observation: "Right door scratch.",
           media_id: null,
         },
       ],

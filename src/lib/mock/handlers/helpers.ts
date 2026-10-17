@@ -24,7 +24,7 @@ export function requireActor(db: MockDb, actorId: string | undefined) {
     throw new ApiError({
       status: 422,
       kind: "validation",
-      message: "actor_id tidak valid.",
+      message: "actor_id is invalid.",
       code: "invalid_actor",
     });
   }
@@ -106,6 +106,6 @@ const DEBUG_ERRORS: Record<string, number> = {
 export function applyDebugError(value: unknown): void {
   const key = strQuery(value);
   if (key && DEBUG_ERRORS[key]) {
-    fail(DEBUG_ERRORS[key], `Simulasi error deterministik: ${key}`, `debug_${key}`);
+    fail(DEBUG_ERRORS[key], `Deterministic error simulation: ${key}`, `debug_${key}`);
   }
 }

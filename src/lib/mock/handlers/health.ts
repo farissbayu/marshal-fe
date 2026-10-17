@@ -75,7 +75,7 @@ export function getKpis(req: MockRequest): { items: Kpi[] } {
     items: [
       {
         key: "active",
-        label: "Mobil Aktif",
+        label: "Active Cars",
         value: (byState.driving ?? 0) + (byState.waiting_dispatch ?? 0),
         unit: "unit",
         tone: "info",
@@ -129,6 +129,6 @@ export function getInspectionKpis(req: MockRequest) {
     first_pass_yield: total ? Math.round((pass / total) * 100) : 0,
     review_share: total ? Math.round((review / total) * 100) : 0,
     failure_count: fail,
-    period: "shift-ini",
+    period: "this shift",
   };
 }

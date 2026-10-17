@@ -10,7 +10,7 @@ export function FilterBar({ children, className }: { children: ReactNode; classN
 export function SearchInput({
   value,
   onChange,
-  placeholder = "Cari…",
+  placeholder = "Search…",
   label,
   className,
 }: {

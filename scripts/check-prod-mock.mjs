@@ -8,10 +8,10 @@ for (const file of files) {
   if (!existsSync(file)) continue;
   const text = readFileSync(file, "utf8");
   if (/^\s*VITE_MOCK_MODE\s*=\s*true\s*$/im.test(text)) {
-    console.error(`✖ ${file}: VITE_MOCK_MODE=true tidak diizinkan untuk production build.`);
+    console.error(`✖ ${file}: VITE_MOCK_MODE=true is not allowed in a production build.`);
     failed = true;
   }
 }
 
 if (failed) process.exit(1);
-console.log("✓ Production env: mock mode dinonaktifkan.");
+console.log("✓ Production env: mock mode disabled.");

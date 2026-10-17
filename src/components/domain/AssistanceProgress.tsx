@@ -18,23 +18,24 @@ export function AssistanceProgress({
   resolvedAt?: string | null;
 }) {
   const resolved = status === "RESOLVED";
-  const waiting = status === "ESCALATED" ? "menunggu supervisor lapangan" : "menunggu supervisor";
+  const waiting =
+    status === "ESCALATED" ? "waiting for field supervisor" : "waiting for supervisor";
   const steps: Array<{ label: string; time: string; state: StepState }> = [
     { label: "OPEN", time: formatDateTime(openedAt), state: "done" },
     {
-      label: status === "ESCALATED" ? "ESKALASI" : "KEPUTUSAN",
+      label: status === "ESCALATED" ? "ESCALATION" : "DECISION",
       time: resolved ? formatDateTime(resolvedAt ?? "") : waiting,
       state: resolved ? "done" : "active",
     },
     {
       label: "RESOLVED",
-      time: resolved ? formatDateTime(resolvedAt ?? "") : "belum selesai",
+      time: resolved ? formatDateTime(resolvedAt ?? "") : "not completed",
       state: resolved ? "done" : "pending",
     },
   ];
 
   return (
-    <ol className="flex flex-wrap items-center gap-y-2" aria-label="Progres case assistance">
+    <ol className="flex flex-wrap items-center gap-y-2" aria-label="Assistance case progress">
       {steps.map((step, index) => (
         <li key={step.label} className="flex items-center">
           {index > 0 && <span className="mx-2 h-px w-6 bg-border sm:mx-3 sm:w-10" aria-hidden />}

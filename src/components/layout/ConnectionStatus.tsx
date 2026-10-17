@@ -11,7 +11,7 @@ export function ConnectionStatus() {
       className="flex items-center gap-2"
       role="status"
       aria-live="polite"
-      aria-label="Status koneksi"
+      aria-label="Connection status"
     >
       <Badge
         variant={
