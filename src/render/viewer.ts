@@ -18,6 +18,7 @@ export type Viewer = {
 
 export function createViewer(canvas: HTMLCanvasElement, world: World): Viewer {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
+  renderer.shadowMap.enabled = true
   const dpr = typeof devicePixelRatio === 'number' ? Math.min(2, devicePixelRatio) : 1
   renderer.setPixelRatio(dpr)
 
@@ -45,7 +46,7 @@ export function createViewer(canvas: HTMLCanvasElement, world: World): Viewer {
 
   const updateCamera = (cars: CarSnapshot[]): void => {
     if (mode === 'overview') {
-      camera.position.set(center.x, 170, center.y + 90)
+      camera.position.set(center.x, 150, center.y + 110)
       camera.lookAt(center.x, 0, center.y)
       return
     }

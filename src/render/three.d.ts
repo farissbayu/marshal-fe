@@ -26,9 +26,11 @@ declare module 'three' {
   export const PlaneGeometry: any
   export const CylinderGeometry: any
   export const CapsuleGeometry: any
+  export const SphereGeometry: any
   export const DirectionalLight: any
   export const AmbientLight: any
   export const Color: any
   export const MathUtils: any
   export const SRGBColorSpace: any
+  export const Fog: any
 }

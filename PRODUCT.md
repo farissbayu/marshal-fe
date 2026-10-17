@@ -43,7 +43,7 @@ claims at once.
   speed; supervisor decisions (`manual_override`, `reroute`) are made on the Assistance card
   during the run.
 - Batches are recorded in memory + localStorage and exportable as JSON; there is no database.
-- Verification runs offline: `bun run verify` and `bunx playwright test`.
+- Verification runs offline: `bun run verify`.
 
 ## Capabilities and Constraints
 
@@ -78,7 +78,7 @@ claims at once.
 - `docs/DEMO.md` — the 5-minute demo script, all steps offline-capable.
 - `docs/ARCHITECTURE.md` — data flow, status contract, design decisions, known shortcuts.
 - `tasks/T01–T18` + `tasks/README.md` — locked decisions table and global Definition of Done.
-- `e2e/` Playwright specs (viewer, assist, batch) and unit tests for sim/AI/render.
+- Unit tests for sim/AI/render.
 - No real plant data, customers, testimonials, benchmarks, or press exist; future work must not
   fabricate them.
 

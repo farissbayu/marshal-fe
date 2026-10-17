@@ -63,6 +63,7 @@ export function createCapture(world: World, opts: { mode?: CaptureMode } = {}): 
       renderer.setSize(WIDTH, HEIGHT, false)
       renderer.setPixelRatio(1)
       renderer.outputColorSpace = THREE.SRGBColorSpace
+      renderer.shadowMap.enabled = true
       const camera = new THREE.PerspectiveCamera(50, WIDTH / HEIGHT, 0.1, 500)
       rig = { yard: createYardScene(world), renderer, canvas, camera }
     } catch {

@@ -42,7 +42,6 @@ silently falls back to the offline answer and the batch keeps going.
 
 ```bash
 bun run verify        # lint + typecheck + check:standalone + unit tests + build
-bunx playwright test  # e2e (offline), needs: bunx playwright install chromium
 ```
 
 ## Folder map

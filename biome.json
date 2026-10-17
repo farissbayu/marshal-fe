@@ -9,9 +9,7 @@
       "!**/.tanstack",
       "!**/.nitro",
       "!**/.vinxi",
-      "!**/routeTree.gen.ts",
-      "!**/test-results",
-      "!**/playwright-report"
+      "!**/routeTree.gen.ts"
     ]
   },
   "formatter": {
