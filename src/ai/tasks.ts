@@ -6,6 +6,7 @@ import { z } from 'zod'
 import {
   buildSheetSchema,
   findingSchema,
+  labelSchema,
   mismatchSchema,
   scenarioSchema,
   testRunSchema,
@@ -94,6 +95,14 @@ export const aiTasks = {
       likelyCause: z.string(),
       suggestedFix: z.string(),
     }),
+  },
+  'batch.plan': {
+    input: z.object({
+      cars: z.number().int().min(1).max(6),
+      seed: z.number(),
+      menu: z.array(z.object({ id: z.string(), label: z.string(), kind: labelSchema })),
+    }),
+    output: z.object({ caseIds: z.array(z.string()), rationale: z.string() }),
   },
   'batch.feedback': {
     input: z.object({ digest: z.unknown() }),

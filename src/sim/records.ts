@@ -140,9 +140,16 @@ export const truckSchema = z.object({
 })
 export type Truck = z.infer<typeof truckSchema>
 
+export const incidentBlockerSchema = z.enum(['box', 'walker', 'vehicle'])
+export type IncidentBlocker = z.infer<typeof incidentBlockerSchema>
+
 export const expectedSchema = z.object({
   kind: labelSchema,
   faultStep: z.string().optional(),
+  /** Case-library id this car was planned from (optional for back-compat). */
+  caseId: z.string().optional(),
+  /** Incident composition, only for kind `incident`. */
+  blockers: z.array(incidentBlockerSchema).optional(),
 })
 export type Expected = z.infer<typeof expectedSchema>
 

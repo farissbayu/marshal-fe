@@ -15,8 +15,8 @@ Browser (one tab)
 
 Server (TanStack Start server functions)
 ├─ src/ai/            ADK agents + aiTask() server function -> Gemini
-│                     (no key -> deterministic offline answers, degraded: true)
-└─ src/lib/serverFns/ Marshal server functions -> Gemini (same offline fallback)
+│                     (offline only when VITE_AI_OFFLINE=true; otherwise errors surface)
+└─ src/lib/serverFns/ Marshal server functions -> Gemini (fallback to deterministic offline)
 ```
 
 ## Marshal contract and server functions
@@ -62,9 +62,10 @@ Server (TanStack Start server functions)
 
 ## Data flow
 
-1. Operator picks 1–6 cars → `BatchRunner.start()` builds a deterministic `Manifest`
-   (`VIN-B0x-n`, build sheet, colour, truck, injected label: `clean | wrong_colour | dead_lamp |
-   incident`; incident for N≥3).
+1. Operator picks 1–6 cars → `planBatch()` picks cases from the 20-case library (Gemini
+   `batch.plan` when a key is set, validated in code; seeded sample otherwise) → `BatchRunner`
+   builds a deterministic `Manifest` (`VIN-B0x-n`, build sheet, colour, truck, expected label +
+   case id; at most one incident).
 2. The runner steps a `SimEngine` at a fixed 0.1 s and drives each car through the flows:
    line end → inspection gate → test track → report → yard → shipped, with flows 1–5 active.
 3. Whenever judgement is needed, the flow asks the injected `AiTaskFn` (client wrapper). Media
@@ -94,11 +95,12 @@ finished = car shipped, parked in yard, or done reworking
   batch (accepted for the demo). The dashboard route is client-rendered (`ssr: false`)
   because the SSR dev-hydration path in this TanStack Start/Vite combination does not attach
   event handlers; the app is client-side by design so this costs nothing.
-- **Offline-first AI.** Every task in `src/ai/tasks.ts` has a handler in `src/ai/offline.ts`.
-  Without a key the whole app runs deterministically; the key is read only in `src/ai/server.ts`
-  and `src/lib/serverFns/gemini.ts`.
-  A flow awaits the AI promise but the engine tick is not stopped by a single call (offline it is
-  effectively instant).
+- **Gemini forced by default, offline by explicit switch.** Every task in `src/ai/tasks.ts` has
+  a handler in `src/ai/offline.ts`, used only when `VITE_AI_OFFLINE=true` is set in `.env`.
+  Otherwise a missing key or model failure is returned as an error and the client throws, so the
+  store fails the batch loudly (`Batch failed`) instead of degrading silently. The key is read
+  only in `src/ai/server.ts` and `src/lib/serverFns/gemini.ts`. A flow awaits the AI promise but
+  the engine tick is not stopped by a single call (offline it is effectively instant).
 - **Vision from the same WebGL scene.** `src/render/capture.ts` renders to an offscreen renderer
   separate from the viewer canvas, so what Gemini sees matches what the operator sees.
 - **Injectable ports keep `src/sim` pure.** `AiTaskFn` (`src/ai/tasks.ts`) and `CapturePort`

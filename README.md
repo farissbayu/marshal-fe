@@ -11,33 +11,27 @@ log, and **Gemini (ADK)** gives per-batch feedback and a report.
 > projects. Every concept (plant map, flows, batch, report) is a self-contained TypeScript copy
 > living in this folder. Enforced by `scripts/check-standalone.mjs` (`bun run check:standalone`).
 
-## Quickstart (offline, no key needed)
+## Quickstart
 
 ```bash
 bun install
+cp .env.example .env    # then set GOOGLE_GENAI_API_KEY (Gemini is required by default)
 bun dev
 # open http://localhost:3000, enter 3 cars, click Run batch
 ```
 
-Without a Gemini key everything still works: every AI answer is the deterministic offline one
-and the UI/report show a **degraded** badge. A 3-car batch finishes in a few seconds.
+By default the app **forces Gemini**: with no key, or on any model error/timeout, AI calls fail
+and the batch stops with a `Batch failed` event instead of silently degrading.
 
-## Turning on Gemini (optional)
+## AI modes
 
-Provide an API key, or use Vertex:
-
-```bash
-cp .env.example .env
-# then set ONE of:
-#   GOOGLE_GENAI_API_KEY=your-key
-#   GOOGLE_GENAI_USE_VERTEXAI=true + GOOGLE_CLOUD_PROJECT + GOOGLE_CLOUD_LOCATION
-# Optional: GEMINI_MODEL (default gemini-2.5-flash)
-```
-
-The key is read **only** in two server-only modules, `src/ai/server.ts` and
-`src/lib/serverFns/gemini.ts`, and never reaches the browser bundle. With a key
-the same flows run, but verdicts/feedback come from the model; on any error or timeout the flow
-silently falls back to the offline answer and the batch keeps going.
+- **Gemini (default).** Set `GOOGLE_GENAI_API_KEY`, or Vertex via
+  `GOOGLE_GENAI_USE_VERTEXAI=true` + `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION`.
+  Optional `GEMINI_MODEL` (default `gemini-2.5-flash`). The key is read **only** in
+  `src/ai/server.ts` and `src/lib/serverFns/gemini.ts`, and never reaches the browser bundle.
+- **Offline (opt-in).** Set `VITE_AI_OFFLINE=true` in `.env`: every task uses the deterministic
+  offline handlers, no Gemini calls happen, the UI/report show a **degraded** badge, and
+  batches still finish `done`.
 
 ## Verify
 

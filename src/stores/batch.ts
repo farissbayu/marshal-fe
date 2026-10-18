@@ -8,6 +8,7 @@ import { truthCapture } from '#/ai/truth'
 import { downloadJson, STORAGE_KEYS, safeGet, safeSet } from '#/lib/storage'
 import { createCapture } from '#/render/capture'
 import { BatchRunner, type BatchSnapshot } from '#/sim/batch/orchestrator'
+import { planBatch } from '#/sim/batch/plan'
 import type { BatchReport } from '#/sim/batch/report'
 import { FIXED_DT } from '#/sim/engine'
 import type { CapturePort } from '#/sim/ports'
@@ -23,6 +24,7 @@ onAiCall((meta) => {
 let runner: BatchRunner | null = null
 let rafId = 0
 let stepping = false
+let planning = false
 
 let batchCounter = safeGet<number>(STORAGE_KEYS.counter, 0)
 function nextBatchId(): string {
@@ -75,39 +77,48 @@ export const useBatchStore = create<BatchStore>((set, get) => ({
   degraded: false,
 
   async start(cars, seed) {
+    if (planning) return
     if (runner && (runner.status === 'running' || runner.status === 'queued')) return
-    degradedFlag = false
-    let capture: CapturePort
+    planning = true
     try {
-      capture = createCapture(world, { mode: 'render' })
-    } catch (error) {
-      console.error('capture init failed, using truth frames', error)
-      capture = truthCapture
+      degradedFlag = false
+      let capture: CapturePort
+      try {
+        capture = createCapture(world, { mode: 'render' })
+      } catch (error) {
+        console.error('capture init failed, using truth frames', error)
+        capture = truthCapture
+      }
+      const batchId = nextBatchId()
+      const plan = await planBatch(ai, { batchId, cars }, () => degradedFlag)
+      runner = new BatchRunner({
+        batchId,
+        cars,
+        seed,
+        timeScale: get().timeScale,
+        ai,
+        capture,
+        world,
+        model: 'gemini-2.5-flash',
+        generatedAt: () => new Date().toISOString(),
+        degraded: () => degradedFlag,
+        caseIds: plan.caseIds,
+        plan: { source: plan.source, rationale: plan.rationale },
+      })
+      runner.start()
+      set({
+        status: 'running',
+        report: null,
+        events: [],
+        cases: [],
+        proposals: [],
+        progress: 0,
+        paused: false,
+      })
+      schedule()
+    } finally {
+      planning = false
     }
-    const batchId = nextBatchId()
-    runner = new BatchRunner({
-      batchId,
-      cars,
-      seed,
-      timeScale: get().timeScale,
-      ai,
-      capture,
-      world,
-      model: 'gemini-2.5-flash',
-      generatedAt: () => new Date().toISOString(),
-      degraded: () => degradedFlag,
-    })
-    runner.start()
-    set({
-      status: 'running',
-      report: null,
-      events: [],
-      cases: [],
-      proposals: [],
-      progress: 0,
-      paused: false,
-    })
-    schedule()
   },
 
   cancel() {
@@ -176,6 +187,9 @@ async function loop(): Promise<void> {
         await current.step(FIXED_DT)
         if (current.status !== 'running') break
       }
+    } catch (error) {
+      // Forced-Gemini mode: an AI failure aborts the batch instead of degrading silently.
+      current.fail(error instanceof Error ? error.message : String(error))
     } finally {
       stepping = false
     }

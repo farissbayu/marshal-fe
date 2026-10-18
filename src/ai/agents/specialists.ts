@@ -25,6 +25,7 @@ export const TASK_GROUP: Record<AiTaskName, AgentGroup> = {
   'scenario.spec': 'scenario',
   'adversarial.propose': 'adversarial',
   'adversarial.report': 'adversarial',
+  'batch.plan': 'batch',
   'batch.feedback': 'batch',
 }
 
@@ -78,10 +79,13 @@ const GROUP_PROMPTS: Record<AgentGroup, { description: string; instruction: stri
       'adversarial.report -> {"explanation":string,"likelyCause":string,"suggestedFix":string}',
   },
   batch: {
-    description: 'Summarises a batch production digest.',
+    description: 'Plans a batch from the case library and summarises the production digest.',
     instruction:
-      'You summarise a batch production digest. Reply with ONLY JSON: ' +
-      '{"batchSize":number,"summary":string,' +
+      'You plan and summarise car-production batches. Reply with ONLY JSON.\n' +
+      'batch.plan -> {"caseIds":string[],"rationale":string} — pick exactly `cars` unique ids ' +
+      'from the menu, never more than one incident kind, and prefer a realistic mix of faults ' +
+      'and quiet cars.\n' +
+      'batch.feedback -> {"batchSize":number,"summary":string,' +
       '"perFlow":[{"flow":number,"name":string,"observation":string,"issues":string[],"recommendation":string}],' +
       '"topIssues":string[],"recommendations":string[],"risk":"low"|"medium"|"high"}',
   },
