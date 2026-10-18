@@ -351,6 +351,32 @@
   overflow: hidden;
 }
 
+.md-sim-note {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  max-width: min(340px, calc(100% - 260px));
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font: 500 12px var(--md-font-mono);
+  color: var(--md-text);
+  background: rgba(18, 23, 29, 0.85);
+  border: 1px solid var(--md-border-alt);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.md-sim-note.gemini {
+  border-color: var(--md-blue-light);
+  color: var(--md-blue-light);
+}
+
+.md-sim-note.yard {
+  border-color: var(--md-accent);
+  color: var(--md-gold);
+}
+
 .md-sim-label {
   position: absolute;
   left: 0;

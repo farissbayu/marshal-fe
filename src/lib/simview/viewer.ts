@@ -21,6 +21,21 @@ export type SimViewerFactory = (
   layout: PlantLayout,
 ) => SimViewer
 
+/**
+ * Bottom-right mini-map viewport, CSS pixels (three.js viewport origin is bottom-left).
+ * @param width - Canvas width, CSS pixels.
+ * @param height - Canvas height, CSS pixels.
+ * @returns Viewport rectangle for the top-down inset.
+ */
+export function minimapViewport(
+  width: number,
+  height: number,
+): { x: number; y: number; width: number; height: number } {
+  const side = Math.max(80, Math.min(220, Math.min(width, height) * 0.28))
+  const margin = 12
+  return { x: Math.max(0, width - side - margin), y: margin, width: side, height: side }
+}
+
 function labelElement(overlay: HTMLElement, anchor: LabelAnchor): HTMLElement {
   const el = document.createElement('div')
   el.className = anchor.kind === 'focus' ? 'md-sim-label focus' : 'md-sim-label'
@@ -48,6 +63,30 @@ export const createSimViewer: SimViewerFactory = (canvas, overlay, layout) => {
   const labels = new Map<string, HTMLElement>()
   const scratch = new THREE.Vector3()
   let time = 0
+
+  // Top-down mini-map: one orthographic camera over the plant, rendered into the corner inset.
+  const minimap = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 800)
+  const halfSpan =
+    Math.max(layout.bounds.maxX - layout.bounds.minX, layout.bounds.maxY - layout.bounds.minY) / 2 +
+    25
+  minimap.left = -halfSpan
+  minimap.right = halfSpan
+  minimap.top = halfSpan
+  minimap.bottom = -halfSpan
+  minimap.updateProjectionMatrix()
+  minimap.up.set(0, 0, -1)
+  minimap.position.set(layout.center.x, 300, layout.center.y)
+  minimap.lookAt(layout.center.x, 0, layout.center.y)
+
+  const renderMinimap = (): void => {
+    const rect = minimapViewport(width, height)
+    renderer.setScissorTest(true)
+    renderer.setViewport(rect.x, rect.y, rect.width, rect.height)
+    renderer.setScissor(rect.x, rect.y, rect.width, rect.height)
+    renderer.render(plant.scene, minimap)
+    renderer.setScissorTest(false)
+    renderer.setViewport(0, 0, width, height)
+  }
 
   const placeLabels = (): void => {
     const seen = new Set<string>()
@@ -87,6 +126,7 @@ export const createSimViewer: SimViewerFactory = (canvas, overlay, layout) => {
       camera.position.set(...pose.position)
       camera.lookAt(...pose.target)
       renderer.render(plant.scene, camera)
+      renderMinimap()
       placeLabels()
     },
     resize(nextWidth, nextHeight) {

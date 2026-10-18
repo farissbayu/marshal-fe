@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { bus } from '#/lib/marshal/eventBus'
 import { createOfflineMarshalAi } from '#/lib/marshal/testing/offlineAi'
 import type { SimSnapshot } from '#/lib/simview/snapshot'
 import type { SimViewerFactory } from '#/lib/simview/viewer'
@@ -136,5 +137,27 @@ describe('SimCanvas on the shift dashboard', () => {
     // "Overview" dismisses the open case until a new decision comes up.
     fireEvent.click(screen.getByRole('button', { name: 'Show the plant overview' }))
     expect(caption()).toHaveTextContent('Overview: 2 cars on the plant')
+  })
+
+  it('shows the latest orchestrator note as a pill (M8.10)', async () => {
+    useShiftStore.getState().configure({
+      ai: createOfflineMarshalAi(),
+      scenario: { cars: [{ vin: 'P001', colour: 'blue' }] },
+    })
+    const viewer = fakeViewer()
+    render(<Dashboard simCanvas={<SimCanvas createViewer={viewer.factory} />} />)
+    await act(flush)
+
+    act(() => {
+      bus.emit('ui:note', { text: 'VIN-P1 parked in Y7', kind: 'plant' })
+    })
+    expect(screen.getByText(/VIN-P1 parked in Y7/)).toHaveTextContent('PLANT · VIN-P1 parked in Y7')
+
+    act(() => {
+      bus.emit('ui:note', { text: 'P001 parking Y7: path B (0.81)', kind: 'gemini' })
+    })
+    const pill = screen.getByText(/path B/)
+    expect(pill).toHaveClass('gemini')
+    expect(pill).toHaveTextContent('GEMINI · P001 parking Y7: path B (0.81)')
   })
 })

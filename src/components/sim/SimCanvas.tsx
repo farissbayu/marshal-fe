@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { bus, type MarshalNote } from '#/lib/marshal/eventBus'
 import { focusAriaLabel, focusCaption, focusColour } from '#/lib/simview/focus'
 import { buildPlantLayout, type PlantLayout } from '#/lib/simview/plantMap'
 import { readSimSnapshot } from '#/lib/simview/snapshot'
 import { createSimViewer, type SimViewer, type SimViewerFactory } from '#/lib/simview/viewer'
 import { getShiftBackend, shiftFocus, useShiftStore } from '#/stores/shift'
+
+/** How long a Gemini / plant note stays on screen, ms. */
+export const NOTE_VISIBLE_MS = 6000
 
 /** Props for {@link SimCanvas}. */
 export type SimCanvasProps = {
@@ -24,7 +28,22 @@ export function SimCanvas({ createViewer = createSimViewer, layout }: SimCanvasP
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [failed, setFailed] = useState(false)
+  const [note, setNote] = useState<MarshalNote | null>(null)
   const plant = useMemo(() => layout ?? buildPlantLayout(), [layout])
+
+  // Latest orchestrator note (Gemini parking, yard re-plans, ...) as a pill over the canvas.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const off = bus.on('ui:note', (item) => {
+      setNote(item)
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => setNote(null), NOTE_VISIBLE_MS)
+    })
+    return () => {
+      if (timer) clearTimeout(timer)
+      off()
+    }
+  }, [])
 
   const shift = useShiftStore((s) => s.shift)
   const selected = useShiftStore((s) => s.selected)
@@ -107,6 +126,11 @@ export function SimCanvas({ createViewer = createSimViewer, layout }: SimCanvasP
             <div ref={overlayRef} className="md-sim-overlay" aria-hidden="true" />
           </>
         )}
+        {note ? (
+          <p className={`md-sim-note ${note.kind}`} aria-live="polite">
+            {note.kind.toUpperCase()} · {note.text}
+          </p>
+        ) : null}
       </div>
       <p
         className={`md-sim-caption${focus ? ` ${focus.reason}` : ''}`}

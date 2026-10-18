@@ -293,7 +293,13 @@ src/
 ### Milestone 8 — SimCanvas Integration (UI Embed)
 **Goal:** Simulator view embedded into Qais's React dashboard layout with live camera toggle and Gemini notes.
 
-- [ ] **M8.10 Implement `src/components/SimCanvas.tsx`**
+> Implemented on the dashboard viewer: the canvas and chase/focus camera already existed; this
+> milestone adds the bottom-right top-down mini-map (orthographic inset, `minimapViewport()` in
+> `src/lib/simview/viewer.ts`) and the live note pill bottom-left driven by `ui:note` bus events
+> (`src/components/sim/SimCanvas.tsx`, 6 s lifetime). The event name is `ui:note` (the plan's
+> `{ op: 'note' }` predates the shipped bus map).
+
+- [x] **M8.10 Implement `src/components/SimCanvas.tsx`**
   - Full-screen or dashboard-card Three.js WebGL canvas rendering.
   - **Main viewport:** dynamic vehicle chase camera.
   - **Mini-map overlay:** top-down orthographic camera inset positioned at bottom-right.

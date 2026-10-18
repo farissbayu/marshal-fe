@@ -19,6 +19,8 @@ declare module 'three' {
   export const Vector3: any
   export type PerspectiveCamera = any
   export const PerspectiveCamera: any
+  export type OrthographicCamera = any
+  export const OrthographicCamera: any
   export type WebGLRenderer = any
   export const WebGLRenderer: any
 
