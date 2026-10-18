@@ -111,6 +111,11 @@ finished = car shipped, parked in yard, or done reworking
 
 ## Known shortcuts
 
+- The scripted engine (the `/shift` stand-in until the three.js backend lands) queues cars with a
+  center-to-center 6 m gap along the follower's own heading, measured only against cars that have
+  an active mission or stand still in the lane; pull-over points (yard slots, rework bay) are
+  ignored. It does not model the lane polyline corridor or a proportional rolling gap yet
+  (TEAM_PLAN M4.1). See `src/lib/marshal/testing/scriptedSystem.ts`.
 - AI latency pauses the tick (the runner awaits per car). Offline this is negligible; upgrade by
   running car AI in parallel if a live key makes batches visibly stall.
 - Headless batches auto-decide an open assistance case after 90 simulated seconds so an

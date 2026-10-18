@@ -4,7 +4,7 @@
 // healthy telemetry, and frames are tiny placeholder base64 strings. Faults only change the
 // truth hints read by the offline AI (telemetry stays ON, per TEAM_PLAN M5.3).
 
-import { isPointName, POINTS } from '../points'
+import { isPointName, POINTS, YARD_SLOTS } from '../points'
 import { rgbToColourName } from '../state'
 import type {
   AssistChooseCmd,
@@ -100,6 +100,20 @@ const DEG = Math.PI / 180
 const WHEELBASE_M = 2.85
 const MAX_STEER = 30 * DEG
 const OBSTACLE_RANGE_M = 15
+
+/** Center-to-center gap kept behind a car with an active mission (TEAM_PLAN M4.1). */
+export const QUEUE_GAP_M = 6
+/** Lateral half-width of the queue corridor, metres. */
+const QUEUE_LATERAL_M = 2.5
+/** Cars further ahead than this are ignored when queueing. */
+const QUEUE_LOOKAHEAD_M = 40
+/** A car standing this close to a pull-over point is parked, not queueing. */
+const PULLOVER_M = 2
+/** Pull-over points (yard slots, rework bay): cars there are off the lane (TEAM_PLAN M4.1). */
+const PULLOVER_POINTS = [...YARD_SLOTS.map((slot) => POINTS[slot]), POINTS['rework.electrical']]
+// shortcut: the queue gap is center-to-center and the corridor uses the follower's own heading
+// only; upgrade to TEAM_PLAN M4.1's lane-polyline corridor and a proportional rolling gap when
+// the real ThreeJsBackend lands.
 const GATE_VIEWS: readonly GateView[] = ['front', 'rear', 'left', 'right']
 const PROP_SIZE: Record<PropKind, { length: number; width: number; moving: boolean }> = {
   box: { length: 1.2, width: 1.2, moving: false },
@@ -537,9 +551,44 @@ export class ScriptedDrivingSystem
     this.drive(car, mission, dt)
   }
 
+  /**
+   * Distance to the nearest car ahead that holds the queue, or null when the lane is clear.
+   * A car holds the queue while it has an active mission, and also when it stands still in the
+   * lane between missions (e.g. waiting for a gate answer). Cars parked on a pull-over point
+   * (yard slot, rework bay) are ignored (TEAM_PLAN M4.1: shoulder cars are not obstacles).
+   * @param car - The car about to move.
+   * @returns Center-to-center distance along the car's heading, or null.
+   */
+  private leaderGap(car: ScriptedCar): number | null {
+    const heading = car.yaw * DEG
+    const fx = Math.cos(heading)
+    const fy = Math.sin(heading)
+    let nearest: number | null = null
+    for (const other of this.cars.values()) {
+      if (other.vin === car.vin) continue
+      if (!other.mission && (other.speed_kmh > 0 || this.onPullover(other))) continue
+      const dx = other.x - car.x
+      const dy = other.y - car.y
+      const ahead = dx * fx + dy * fy
+      if (ahead <= 0 || ahead > QUEUE_LOOKAHEAD_M) continue
+      if (Math.abs(dx * fy - dy * fx) > QUEUE_LATERAL_M) continue
+      if (nearest === null || ahead < nearest) nearest = ahead
+    }
+    return nearest
+  }
+
+  private onPullover(car: ScriptedCar): boolean {
+    return PULLOVER_POINTS.some(
+      (point) => Math.hypot(car.x - point.x, car.y - point.y) <= PULLOVER_M,
+    )
+  }
+
   private drive(car: ScriptedCar, mission: ActiveMission, dt: number): void {
     const waypoints = mission.cmd.waypoints
     let remaining = mission.speed_mps * dt
+    const leader = this.leaderGap(car)
+    if (leader !== null) remaining = Math.min(remaining, Math.max(0, leader - QUEUE_GAP_M))
+    const budget = remaining
     while (remaining > 0 && mission.index < waypoints.length) {
       const target = point(waypoints[mission.index])
       const dx = target.x - car.x
@@ -561,7 +610,8 @@ export class ScriptedDrivingSystem
       }
     }
     const arrived = mission.index >= waypoints.length
-    car.speed_kmh = arrived ? 0 : mission.speed_mps * 3.6
+    const moved = budget - remaining
+    car.speed_kmh = arrived || moved < 1e-9 ? 0 : (moved / dt) * 3.6
     if (arrived) car.yaw = point(waypoints[waypoints.length - 1]).yaw
     this.emitStatus(car)
     if (!arrived || car.mission !== mission) return

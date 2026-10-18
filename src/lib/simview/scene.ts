@@ -218,6 +218,19 @@ export function createPlantScene(layout: PlantLayout): PlantScene {
     )
     strip.rotation.y = rotationY
   }
+  // Staging lane behind the line end: spawned cars queue here before their first mission.
+  const lineEnd = layout.markers.find((marker) => marker.name === 'line_end')
+  if (lineEnd) {
+    const staging = 100
+    add(
+      map,
+      new THREE.BoxGeometry(staging, 0.02, ROAD_WIDTH),
+      mat.road,
+      lineEnd.x - staging / 2,
+      0.01,
+      lineEnd.y,
+    )
+  }
   for (const marker of layout.markers) buildMarker(map, marker, mat)
 
   const shared = new Set<THREE.Material>(Object.values(mat))
