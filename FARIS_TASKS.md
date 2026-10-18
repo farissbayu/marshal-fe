@@ -60,28 +60,34 @@ src/
 ### Milestone 1 — Static Plant World
 **Goal:** Plant environment rendered in Three.js; camera screenshot at gate matches reference layout.
 
-- [ ] **M1.1 Set up project dependencies**
+> Implemented in `src/lib/simulator/`: `coords.ts`, `world/plantMap.ts` (lane graph), `world/roadBuilder.ts`,
+> `world/dress.ts`, `world/lighting.ts`, `actors/car.ts`. Deviations: the loose three type shim is kept
+> instead of `@types/three` (see docs/ARCHITECTURE.md known shortcuts); lane legs are straight until the
+> CARLA map YAML lands; named points come from `src/lib/marshal/points.ts` so they cannot drift from the
+> TEAM_PLAN table.
+
+- [x] **M1.1 Set up project dependencies**
   - Verify Three.js (`three`, `@types/three`), TypeScript strict configuration, and project tooling.
-- [ ] **M1.2 Implement coordinate conversion (`src/lib/simulator/coords.ts`)**
+- [x] **M1.2 Implement coordinate conversion (`src/lib/simulator/coords.ts`)**
   - CARLA (left-handed, Z-up) to Three.js (right-handed, Y-up):
     ```ts
     mesh.position.set(x, z, y);
     mesh.rotation.y = -THREE.MathUtils.degToRad(yawDeg);
     ```
-- [ ] **M1.3 Build procedural road geometry (`src/lib/simulator/world/roadBuilder.ts`)**
+- [x] **M1.3 Build procedural road geometry (`src/lib/simulator/world/roadBuilder.ts`)**
   - 8 roads (4 straights + 4 quarter-bends, $r=22\text{m}$), Lane C connector.
   - Lane $-2$ centre-line polylines sampled at $1\text{m}$ intervals.
-- [ ] **M1.4 Build named point map & segment graph (`src/lib/simulator/world/plantMap.ts`)**
+- [x] **M1.4 Build named point map & segment graph (`src/lib/simulator/world/plantMap.ts`)**
   - Define all 20+ named points from YAML specification (`line_end`, `buffer_zone_b`, `inspection_gate`, `test_track`, `report_point`, `lane_c`, `finishing`, `rework.electrical`, `yard.entry`, `yard.Y1–Y8`, etc.).
   - Build topological segment graph for route validation and path planning.
-- [ ] **M1.5 Dress the plant (`src/lib/simulator/world/dress.ts`)**
+- [x] **M1.5 Dress the plant (`src/lib/simulator/world/dress.ts`)**
   - Perimeter security fence (barrier module every $4\text{m}$).
   - Parked cars in yard (Road 7, Lane $-5$, spaced every $6\text{m}$).
   - Loading bay trucks (Road 5 inner apron, spaced every $13\text{m}$).
   - Storage compound rows (inner loop).
   - Gate calibration boards, safety cones, warning signage.
   - Rework bay props: barrels, boxes, iron plank, defect sign.
-- [ ] **M1.6 Car model with controllable light states (`src/lib/simulator/actors/car.ts`)**
+- [x] **M1.6 Car model with controllable light states (`src/lib/simulator/actors/car.ts`)**
   - Dimensions: Length $4.9\text{m}$, Width $1.9\text{m}$, Wheelbase $2.85\text{m}$.
   - Emissive light materials for:
     - LowBeam (front headlights pair)
@@ -89,7 +95,7 @@ src/
     - Reverse (rear white lights)
     - LeftBlinker & RightBlinker (amber turn indicators)
   - Fault override support: e.g. `setFault('headlights')` disables visual emissive mesh while vehicle telemetry still reports `"ON"`.
-- [ ] **M1.7 Lighting & Atmosphere**
+- [x] **M1.7 Lighting & Atmosphere**
   - Dusk atmospheric illumination: Sun/ambient light with low elevation angle ($15^\circ$).
 
 ---
