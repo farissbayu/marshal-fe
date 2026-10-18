@@ -145,6 +145,11 @@ const MAX_STEER = 30 * DEG
 const OBSTACLE_RANGE_M = 15
 /** Clear gap kept in front of a car to the car ahead when standing (TEAM_PLAN M4.1). */
 export const STANDING_GAP_M = 6
+/**
+ * Centre-to-centre distance a queued car stands behind the car ahead: the standing gap plus one
+ * car length (kept for queue.test.ts and callers of the earlier centre-to-centre rule).
+ */
+export const QUEUE_GAP_M = STANDING_GAP_M + CAR_LENGTH_M
 /** Moving cars slow down proportionally when the clear road ahead is under speed x this. */
 export const HEADWAY_S = 1
 /** Clearance kept on every side of a car's footprint. */

@@ -60,28 +60,34 @@ src/
 ### Milestone 1 — Static Plant World
 **Goal:** Plant environment rendered in Three.js; camera screenshot at gate matches reference layout.
 
-- [ ] **M1.1 Set up project dependencies**
+> Implemented in `src/lib/simulator/`: `coords.ts`, `world/plantMap.ts` (lane graph), `world/roadBuilder.ts`,
+> `world/dress.ts`, `world/lighting.ts`, `actors/car.ts`. Deviations: the loose three type shim is kept
+> instead of `@types/three` (see docs/ARCHITECTURE.md known shortcuts); lane legs are straight until the
+> CARLA map YAML lands; named points come from `src/lib/marshal/points.ts` so they cannot drift from the
+> TEAM_PLAN table.
+
+- [x] **M1.1 Set up project dependencies**
   - Verify Three.js (`three`, `@types/three`), TypeScript strict configuration, and project tooling.
-- [ ] **M1.2 Implement coordinate conversion (`src/lib/simulator/coords.ts`)**
+- [x] **M1.2 Implement coordinate conversion (`src/lib/simulator/coords.ts`)**
   - CARLA (left-handed, Z-up) to Three.js (right-handed, Y-up):
     ```ts
     mesh.position.set(x, z, y);
     mesh.rotation.y = -THREE.MathUtils.degToRad(yawDeg);
     ```
-- [ ] **M1.3 Build procedural road geometry (`src/lib/simulator/world/roadBuilder.ts`)**
+- [x] **M1.3 Build procedural road geometry (`src/lib/simulator/world/roadBuilder.ts`)**
   - 8 roads (4 straights + 4 quarter-bends, $r=22\text{m}$), Lane C connector.
   - Lane $-2$ centre-line polylines sampled at $1\text{m}$ intervals.
-- [ ] **M1.4 Build named point map & segment graph (`src/lib/simulator/world/plantMap.ts`)**
+- [x] **M1.4 Build named point map & segment graph (`src/lib/simulator/world/plantMap.ts`)**
   - Define all 20+ named points from YAML specification (`line_end`, `buffer_zone_b`, `inspection_gate`, `test_track`, `report_point`, `lane_c`, `finishing`, `rework.electrical`, `yard.entry`, `yard.Y1–Y8`, etc.).
   - Build topological segment graph for route validation and path planning.
-- [ ] **M1.5 Dress the plant (`src/lib/simulator/world/dress.ts`)**
+- [x] **M1.5 Dress the plant (`src/lib/simulator/world/dress.ts`)**
   - Perimeter security fence (barrier module every $4\text{m}$).
   - Parked cars in yard (Road 7, Lane $-5$, spaced every $6\text{m}$).
   - Loading bay trucks (Road 5 inner apron, spaced every $13\text{m}$).
   - Storage compound rows (inner loop).
   - Gate calibration boards, safety cones, warning signage.
   - Rework bay props: barrels, boxes, iron plank, defect sign.
-- [ ] **M1.6 Car model with controllable light states (`src/lib/simulator/actors/car.ts`)**
+- [x] **M1.6 Car model with controllable light states (`src/lib/simulator/actors/car.ts`)**
   - Dimensions: Length $4.9\text{m}$, Width $1.9\text{m}$, Wheelbase $2.85\text{m}$.
   - Emissive light materials for:
     - LowBeam (front headlights pair)
@@ -89,7 +95,7 @@ src/
     - Reverse (rear white lights)
     - LeftBlinker & RightBlinker (amber turn indicators)
   - Fault override support: e.g. `setFault('headlights')` disables visual emissive mesh while vehicle telemetry still reports `"ON"`.
-- [ ] **M1.7 Lighting & Atmosphere**
+- [x] **M1.7 Lighting & Atmosphere**
   - Dusk atmospheric illumination: Sun/ambient light with low elevation angle ($15^\circ$).
 
 ---
@@ -97,22 +103,30 @@ src/
 ### Milestone 2 — Lane Graph + One Car Driving
 **Goal:** Single car drives autonomous loop: `line_end → inspection_gate → test_track → report_point` at $10\text{ km/h}$, crossing gate at $\sim 5\text{ km/h}$.
 
-- [ ] **M2.1 Lane graph pathfinding**
+> Implemented in `src/lib/simulator/`: `world/plantMap.ts` gains deterministic Dijkstra `route()`;
+> `actors/driver.ts` holds pure-pursuit steering, the speed controller and the M2.4 arrival rules;
+> `engine.ts` implements the `DrivingSystem` `send` dispatcher, 1 Hz status and `mission.done`.
+> Deviations: the engine is pure (no three.js import; the viewer attaches meshes later, M8.10);
+> the gate is crossed at ~5 km/h and the speed logged on first approach, but the car still stops
+> at `inspection_gate` because the gate flow waits for `mission.done` (a true drive-through needs
+> a flow change, TEAM_PLAN M2.4 vs M3.4); assist manoeuvres are minimal until M6.
+
+- [x] **M2.1 Lane graph pathfinding**
   - Path search (A* or Dijkstra) traversing the segment graph between waypoints.
-- [ ] **M2.2 Pure-pursuit steering controller (`src/lib/simulator/actors/driver.ts`)**
+- [x] **M2.2 Pure-pursuit steering controller (`src/lib/simulator/actors/driver.ts`)**
   - Lookahead distance: $\sim 2\times$ car length ($\approx 9.8\text{m}$).
   - Maximum steering angle: $\pm 30^\circ$ front-wheel deflection.
   - Kinematic bicycle model ($L = 2.85\text{m}$).
-- [ ] **M2.3 Speed controller**
+- [x] **M2.3 Speed controller**
   - Smooth acceleration/braking profile targeting `max_speed_kmh` (default $10\text{ km/h}$).
-- [ ] **M2.4 Arrival & stop detection**
+- [x] **M2.4 Arrival & stop detection**
   - **Normal waypoint:** arrival radius within $3\text{--}4\text{m}$.
   - **Precise stop (`pull_over`, rework):** tolerance $\pm 0.4\text{m}$, walking creep speed, $30\text{s}$ timeout.
   - **Drive-through (`inspection_gate`):** seamless crossing without stopping, log gate speed `passes[vin] = km/h`, emit status.
-- [ ] **M2.5 Event dispatchers**
+- [x] **M2.5 Event dispatchers**
   - Emit periodic `status` event at $1\text{ Hz}$.
   - Emit `mission.done` on completing all waypoint segments.
-- [ ] **M2.6 Implement `send(MissionGoCmd)` dispatcher (`src/lib/simulator/engine.ts`)**
+- [x] **M2.6 Implement `send(MissionGoCmd)` dispatcher (`src/lib/simulator/engine.ts`)**
   - Parse waypoints, assign path, and activate driver state machine.
 
 ---
@@ -120,7 +134,15 @@ src/
 ### Milestone 3 — Gate Inspection Cameras (Simulator Side)
 **Goal:** 4 fixed inspection cameras render car drive-through and export clean base64 frames to gate flow.
 
-- [ ] **M3.1 Gate camera rig implementation (`src/lib/simulator/cameras/gateCamera.ts`)**
+> Implemented in `src/lib/simulator/cameras/gateCamera.ts`: `gateCameraPoses()` (the M3.1 rig) and
+> `createGateCamera()` with the `capture(vin, views)` port, 1280x720 JPEGs, renderer/encoder
+> injectable so tests run headless. Deviations: frames come off the renderer canvas instead of a
+> `WebGLRenderTarget` + pixel read-back (shortcut noted in the file; switch with the M5.1 evidence
+> buffer); the capture is triggered by the gate flow at `inspection_gate` arrival rather than a
+> threshold-crossing watcher; the M3.3 handshake is covered against `offlineGate`/`fitGateFrames`
+> in tests, the live Gemini handshake needs the engine-owned scene (viewer integration).
+
+- [x] **M3.1 Gate camera rig implementation (`src/lib/simulator/cameras/gateCamera.ts`)**
   - 4 `WebGLRenderTarget` cameras positioned around `inspection_gate`:
     - **Front:** Forward $+7\text{m}$, Z $1.5\text{m}$, Yaw $180^\circ$, Pitch $-5^\circ$, FOV $90^\circ$
     - **Rear:** Forward $-7\text{m}$, Z $1.5\text{m}$, Yaw $0^\circ$, Pitch $-5^\circ$, FOV $90^\circ$
@@ -128,9 +150,9 @@ src/
     - **Right:** Right $+5\text{m}$, Z $1.2\text{m}$, Yaw $-90^\circ$, Pitch $-5^\circ$, FOV $90^\circ$
   - Drive-through trigger: capture fired when vehicle bounding centre crosses the gate threshold.
   - Resolution: $1280 \times 720$, raw JPEG export without text overlays or debug UI.
-- [ ] **M3.2 Implement `GateCamera.capture(vin, views)`**
+- [x] **M3.2 Implement `GateCamera.capture(vin, views)`**
   - Returns `{ front, rear, left, right }` as clean base64 JPEG strings for Gemini consumption.
-- [ ] **M3.3 Integration testing with Qais**
+- [x] **M3.3 Integration testing with Qais**
   - Validate handshake between camera capture and `evaluateGatePhotos()`.
 
 ---
