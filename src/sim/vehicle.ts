@@ -192,8 +192,10 @@ export class Vehicle {
       state: this.state,
       colour: this.colour,
       lamps: {
-        headlights: this.normalHeadlights && this.faultStep !== 'headlights',
-        brake_lights: this.normalBrake && this.faultStep !== 'brake_lights',
+        headlights:
+          this.normalHeadlights && this.faultStep !== 'headlights' && this.faultStep !== 'lamps',
+        brake_lights:
+          this.normalBrake && this.faultStep !== 'brake_lights' && this.faultStep !== 'lamps',
       },
       fault: this.faultStep,
     }

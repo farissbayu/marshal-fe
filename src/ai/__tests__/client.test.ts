@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type AiCallMeta, type AiSend, createAiClient, onAiCall } from '../client'
 import { offlineTask } from '../offline'
 import type { AiFrame } from '../tasks'
@@ -14,7 +14,10 @@ const frame: AiFrame = {
 
 const input = { frame, buildSheet: { model: 'M', colour: 'blue' as const, options: [] } }
 
-describe('createAiClient', () => {
+describe('createAiClient (offline allowed)', () => {
+  beforeEach(() => vi.stubEnv('VITE_AI_OFFLINE', 'true'))
+  afterEach(() => vi.unstubAllEnvs())
+
   it('falls back to offline and marks degraded when send rejects', async () => {
     const send: AiSend = vi.fn(async () => {
       throw new Error('network down')
@@ -76,5 +79,29 @@ describe('createAiClient', () => {
     unsubscribe()
     await createAiClient({ send })('visual.match', input)
     expect(callback).not.toHaveBeenCalled()
+  })
+})
+
+describe('createAiClient (Gemini forced, offline disabled)', () => {
+  beforeEach(() => vi.unstubAllEnvs())
+
+  it('throws when send rejects instead of degrading', async () => {
+    const send: AiSend = vi.fn(async () => {
+      throw new Error('network down')
+    })
+    const client = createAiClient({ send, timeoutMs: 50 })
+    await expect(client('visual.match', input)).rejects.toThrow('network down')
+  })
+
+  it('surfaces a server error envelope', async () => {
+    const send: AiSend = async () => ({ ok: false, degraded: false, error: 'gemini exploded' })
+    const client = createAiClient({ send })
+    await expect(client('visual.match', input)).rejects.toThrow('gemini exploded')
+  })
+
+  it('throws when the result fails the output schema', async () => {
+    const send: AiSend = async () => ({ ok: true, degraded: false, result: { nope: true } })
+    const client = createAiClient({ send })
+    await expect(client('visual.match', input)).rejects.toThrow()
   })
 })

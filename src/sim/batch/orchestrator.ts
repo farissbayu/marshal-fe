@@ -61,6 +61,9 @@ export type BatchRunnerOptions = {
   model?: string
   generatedAt?: () => string
   degraded?: () => boolean
+  /** Explicit case-library selection from the planner (falls back to a seeded sample). */
+  caseIds?: string[]
+  plan?: { source: 'gemini' | 'offline'; rationale: string }
 }
 
 export type BatchSnapshot = {
@@ -130,7 +133,7 @@ export class BatchRunner {
 
   constructor(private readonly opts: BatchRunnerOptions) {
     this.batchId = opts.batchId
-    this.manifest = buildManifest(opts.batchId, opts.cars, opts.seed)
+    this.manifest = buildManifest(opts.batchId, opts.cars, opts.seed, opts.caseIds)
     const timeScale = opts.timeScale ?? 4
     this.engine = new SimEngine(opts.world, { seed: this.manifest.seed, timeScale })
     const rng: Rng = makeRng(this.manifest.seed ^ 0x9e3779b9)
@@ -166,6 +169,14 @@ export class BatchRunner {
   }
 
   start(): void {
+    if (this.opts.plan) {
+      this.emit({
+        source: 'batch',
+        title: 'Batch planned',
+        detail: `source=${this.opts.plan.source} ${this.opts.plan.rationale}`,
+        level: 'info',
+      })
+    }
     for (const batchCar of this.manifest.cars) {
       const rt: CarRT = {
         vin: batchCar.vin,
@@ -235,6 +246,15 @@ export class BatchRunner {
     this.status = 'cancelled'
     this.actors.length = 0
     this.emit({ source: 'batch', title: 'Batch cancelled', detail: '', level: 'warn' })
+  }
+
+  /** Stop the batch on an unrecoverable error (e.g. a failed Gemini call in forced mode). */
+  fail(error: string): void {
+    if (this.status !== 'running' && this.status !== 'queued') return
+    this.status = 'failed'
+    this.error = error
+    this.actors.length = 0
+    this.emit({ source: 'batch', title: 'Batch failed', detail: error, level: 'bad' })
   }
 
   setTimeScale(n: number): void {
@@ -376,7 +396,7 @@ export class BatchRunner {
     if (this.gateOccupied()) return
     if (rt.batchCar.expected.kind === 'incident') {
       const route = this.engine.world.route('line_end', 'inspection_gate')
-      const placement = placeIncident(this.engine.world, route)
+      const placement = placeIncident(this.engine.world, route, rt.batchCar.expected.blockers)
       if (placement) {
         rt.incident = placement
         this.actors.push(...placement.actors)

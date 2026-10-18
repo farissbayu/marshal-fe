@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { caseMenu } from '#/sim/batch/cases'
 import type { FlowCounts } from '#/sim/records'
 import { offlineTask } from '../offline'
 import { AI_TASK_NAMES, type AiFrame, type AiTaskName, aiTasks } from '../tasks'
@@ -46,6 +47,7 @@ const payloads: Record<AiTaskName, unknown> = {
     },
     metrics: {},
   },
+  'batch.plan': { cars: 3, seed: 7, menu: caseMenu() },
   'batch.feedback': { digest: { batchId: 'B01', batchSize: 3, counts, exceptions: [] } },
 }
 
@@ -69,6 +71,14 @@ describe('offline AI', () => {
   it('reports a dead headlight as not working', async () => {
     const out = await offlineTask('track.decide', { frame, step: 'headlights_on' })
     expect(out.works).toBe(false)
+  })
+
+  it('plans a unique batch from the case library menu', async () => {
+    const out = await offlineTask('batch.plan', { cars: 3, seed: 7, menu: caseMenu() })
+    expect(out.caseIds).toHaveLength(3)
+    expect(new Set(out.caseIds).size).toBe(3)
+    const kinds = out.caseIds.map((id) => caseMenu().find((c) => c.id === id)?.kind)
+    expect(kinds.filter((k) => k === 'incident').length).toBeLessThanOrEqual(1)
   })
 
   it('does not recommend wait_for_removal when nobody is present', async () => {

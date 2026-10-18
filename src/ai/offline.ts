@@ -1,7 +1,9 @@
 // Deterministic offline AI: every task in the registry has a handler here, so the whole
 // app works (and tests run) without a Gemini key. Answers are derived from inputs only.
 
+import { sampleCaseIds } from '#/sim/batch/cases'
 import type { FlowCounts } from '#/sim/records'
+import { makeRng } from '#/sim/rng'
 import type { AiTaskFn, AiTaskInput, AiTaskName, AiTaskOutput, BatchFeedback } from './tasks'
 
 const FLOW_NAMES = [
@@ -161,6 +163,11 @@ function compute(task: AiTaskName, payload: Record<string, any>): unknown {
         suggestedFix: 'Increase the minimum approach gap or slow the ego near the incident.',
       }
     }
+    case 'batch.plan':
+      return {
+        caseIds: sampleCaseIds(makeRng(Number(payload.seed ?? 1)), Number(payload.cars ?? 1)),
+        rationale: 'Deterministic offline pick: seeded sample of the case library.',
+      }
     case 'batch.feedback':
       return offlineFeedback(payload.digest as FeedbackDigest)
     default:

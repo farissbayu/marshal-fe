@@ -1,10 +1,23 @@
 import { useState } from 'react'
+import { caseById } from '#/sim/batch/cases'
 import type { BatchCar } from '#/sim/records'
 import { useBatchStore } from '#/stores/batch'
 
 const NO_CARS: BatchCar[] = []
 
 function expectedLabel(car: BatchCar): { text: string; tone: string } {
+  const def = car.expected.caseId ? caseById(car.expected.caseId) : undefined
+  if (def) {
+    return {
+      text: def.label,
+      tone:
+        car.expected.kind === 'wrong_colour'
+          ? 'bad'
+          : car.expected.kind === 'clean'
+            ? 'ok'
+            : 'warn',
+    }
+  }
   switch (car.expected.kind) {
     case 'wrong_colour':
       return { text: 'wrong colour', tone: 'bad' }
