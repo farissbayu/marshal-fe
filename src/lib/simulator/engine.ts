@@ -11,10 +11,12 @@
 // straight without the reverse-turn-in variant.
 
 import { isPointName, type NamedPoint, type PointName, YARD_SLOTS } from '#/lib/marshal/points'
+import { rgbToColourName } from '#/lib/marshal/state'
 import type {
   AssistOption,
   AssistRequestEvent,
   DrivingSystem,
+  GateView,
   MissionDoneEvent,
   MissionGoCmd,
   SimCommand,
@@ -22,6 +24,7 @@ import type {
   StatusEvent,
   TrackStepEvent,
 } from '#/lib/marshal/types'
+import type { CarLamps } from './actors/car'
 import {
   ARRIVAL_RADIUS_M,
   approachSpeed,
@@ -31,6 +34,7 @@ import {
   GATE_SLOW_ZONE_M,
   GATE_SPEED_MPS,
   LOOKAHEAD_M,
+  MAX_ACCEL_MPS2,
   nearestIndex,
   type PathPoint,
   PRECISE_TIMEOUT_S,
@@ -38,6 +42,15 @@ import {
   purePursuitSteer,
   stepVehicle,
 } from './actors/driver'
+import type { PropKind } from './actors/props'
+import {
+  offLamps,
+  R12_BLINK_PERIOD_S,
+  R12_BRAKE_TEST_KMH,
+  R12_REVERSE_M,
+  type RoutineStepSpec,
+  r12Steps,
+} from './actors/routine'
 import { createLaneGraph, type LaneGraph } from './world/plantMap'
 import { sampleCenterline } from './world/roadBuilder'
 
@@ -68,7 +81,42 @@ const QUEUE_LOOKAHEAD_M = 40
 /** A car within this of a pull-over point is parked, not queueing. */
 const PULLOVER_RADIUS_M = 2
 
+/** Obstacle scan (TEAM_PLAN M6.2): lookahead = base + v^2/(2*decel), lateral corridor. */
+export const OBSTACLE_BASE_M = 9
+export const PROP_DECEL_MPS2 = 4
+const OBSTACLE_LATERAL_M = 1.8
+/** Stop this far short of a blocking prop. */
+const PROP_STOP_GAP_M = 2
+/** Blocked detection (TEAM_PLAN M6.3): still for this long, obstacle this close ahead. */
+export const BLOCKED_TIME_S = 5
+export const BLOCKED_SPEED_MPS = 0.6 / 3.6
+const BLOCKED_RADIUS_M = 14
+const BLOCKED_LATERAL_M = 3
+/** Waiting for removal clears when no prop is within this. */
+const CLEAR_RADIUS_M = 15
+/** Pass-left maneuver (TEAM_PLAN M6.4): back up for room, crawl at 3 km/h, this offset, return. */
+export const AVOID_SPEED_MPS = 3 / 3.6
+export const AVOID_OFFSET_M = 3.5
+export const AVOID_BACKUP_M = 6
+export const AVOID_BACKUP_SPEED_MPS = 1
+/** The offset is held until the obstacle is this far behind / outside this corridor. */
+const AVOID_TRACK_RANGE_M = 12
+const AVOID_TRACK_LATERAL_M = 6
+
 type LampFault = 'headlights' | 'brake_lights' | 'indicators'
+
+/** Routine state while a mission runs its R-12 sequence at the final waypoint (M5.2). */
+type ActiveRoutine = {
+  id: string
+  steps: RoutineStepSpec[]
+  index: number
+  /** Seconds inside the current step. */
+  elapsed: number
+  /** Pose the current motion step started from. */
+  startPose: { x: number; y: number }
+  /** Speed when the brake test hit the brakes, null before that. */
+  brakingFrom: number | null
+}
 
 type ActiveMission = {
   cmd: MissionGoCmd
@@ -86,6 +134,8 @@ type ActiveMission = {
   preciseElapsed: number
   travelled_m: number
   total_m: number
+  /** R-12 sequence running at the final waypoint (null outside the test track). */
+  routine: ActiveRoutine | null
 }
 
 type EngineCar = {
@@ -103,10 +153,36 @@ type EngineCar = {
   holdLeft: number | null
   stoppedForAssist: boolean
   faults: Set<LampFault>
+  /** Lamp state for the viewer (faults darken a lamp visually, telemetry stays nominal). */
+  lamps: CarLamps
+  /** Assist case the car waits on with `wait_for_removal`. */
+  waitingCase: string | null
+  waited_s: number
+  /** Seconds the car has been still with a non-plant obstacle ahead (M6.3). */
+  blockedFor: number
+  /** An assist case is open: do not raise another (M6.3). */
+  assistPending: boolean
+  /** Assists raised for this car, for `AC-<vin>-<seq>` ids. */
+  assistSeq: number
+  /** Pass-left maneuver phase (M6.4): back up for room, then swerve past. */
+  avoidPhase: 'backup' | 'swerve' | null
+  /** Pose the backup phase started from. */
+  avoidStart: { x: number; y: number } | null
+  /** Assist case the pass-left maneuver belongs to. */
+  avoidCase: string | null
+  /** Closest distance to a prop during the pass-left maneuver. */
+  avoidClosest: number
 }
 
 type AssistRecord = { vin: string; options: AssistOption[]; frames: string[] }
+type PropState = { id: string; kind: PropKind; x: number; y: number; yaw: number }
 type Listener = (event: any) => void
+
+/** Engine options. */
+export type EngineOptions = {
+  /** Chase-camera clip for an assist case (M6.3/M6.5); [] when no rig is attached. */
+  assistFrames?: (vin: string) => string[]
+}
 
 function routeLength(route: readonly PathPoint[]): number {
   let total = 0
@@ -135,21 +211,22 @@ export class ThreeJsEngine implements DrivingSystem {
   private readonly cars = new Map<string, EngineCar>()
   private readonly listeners = new Map<SimEvent['event'], Set<Listener>>()
   private readonly assists = new Map<string, AssistRecord>()
-  private readonly props = new Map<
-    string,
-    { id: string; kind: string; x: number; y: number; yaw: number }
-  >()
+  private readonly props = new Map<string, PropState>()
+  /** Optional chase-camera clip for assist cases (M6.3); [] without a camera rig. */
+  private readonly assistFrames: (vin: string) => string[]
   private readonly artifacts = new Map<string, Blob>()
   private clock = 0
   private statusClock = 0
 
   /**
    * @param graph - Lane graph (defaults to the Marshal contract map).
+   * @param options - Optional assist clip provider (the M5.1 chase camera).
    */
-  constructor(graph: LaneGraph = createLaneGraph()) {
+  constructor(graph: LaneGraph = createLaneGraph(), options: EngineOptions = {}) {
     this.graph = graph
     const pullOverNames: PointName[] = [...YARD_SLOTS, 'rework.electrical']
     this.pullOvers = pullOverNames.map((name) => graph.points[name])
+    this.assistFrames = options.assistFrames ?? (() => [])
   }
 
   /** Sim time in seconds. */
@@ -175,10 +252,26 @@ export class ThreeJsEngine implements DrivingSystem {
       car.held = false
       car.holdLeft = null
     } else {
-      // assist.choose: the case bookkeeping lives in the orchestrator; the assist manoeuvres
-      // (wait / pass_left / reroute) land with M6. Clearing the stop resumes the mission.
+      // assist.choose (M6.4): record the decision and run the chosen manoeuvre.
       this.assistOutcomes[cmd.case_id] = { option: cmd.option, chosen_by: cmd.chosen_by }
+      car.assistPending = false
       car.stoppedForAssist = false
+      car.blockedFor = 0
+      if (cmd.option === 'wait_for_removal') {
+        car.waitingCase = cmd.case_id
+        car.waited_s = 0
+      } else if (cmd.option === 'pass_left_3kmh') {
+        car.avoidPhase = 'backup'
+        car.avoidStart = { x: car.x, y: car.y }
+        car.avoidCase = cmd.case_id
+        car.avoidClosest = Number.POSITIVE_INFINITY
+      } else if (!this.rerouteViaLaneC(car)) {
+        // No lane C on the way: fall back to passing the obstacle.
+        car.avoidPhase = 'backup'
+        car.avoidStart = { x: car.x, y: car.y }
+        car.avoidCase = cmd.case_id
+        car.avoidClosest = Number.POSITIVE_INFINITY
+      }
     }
   }
 
@@ -229,6 +322,16 @@ export class ThreeJsEngine implements DrivingSystem {
       holdLeft: null,
       stoppedForAssist: false,
       faults: new Set(),
+      lamps: offLamps(),
+      waitingCase: null,
+      waited_s: 0,
+      blockedFor: 0,
+      assistPending: false,
+      assistSeq: 0,
+      avoidPhase: null,
+      avoidStart: null,
+      avoidCase: null,
+      avoidClosest: Number.POSITIVE_INFINITY,
     })
   }
 
@@ -262,6 +365,24 @@ export class ThreeJsEngine implements DrivingSystem {
   }
 
   /**
+   * Lamp faults set on a car (visual overrides, M5.3).
+   * @param vin - Car VIN.
+   * @returns Fault names.
+   */
+  faultsOf(vin: string): LampFault[] {
+    return [...(this.cars.get(vin)?.faults ?? [])]
+  }
+
+  /**
+   * Lamp state of a car for the viewer (routine steps drive it).
+   * @param vin - Car VIN.
+   * @returns Copy of the lamp state.
+   */
+  lampsOf(vin: string): CarLamps {
+    return { ...(this.cars.get(vin)?.lamps ?? offLamps()) }
+  }
+
+  /**
    * Current car pose.
    * @param vin - Car VIN.
    * @returns Pose in the map frame (zeros for unknown cars).
@@ -283,6 +404,47 @@ export class ThreeJsEngine implements DrivingSystem {
   }
 
   /**
+   * Gate truth hints for the offline AI: the paint colour seen by every view.
+   * @param vin - Car VIN.
+   * @returns Per-view hint, e.g. 'colour=red'.
+   */
+  gateHints(vin: string): Partial<Record<GateView, string>> {
+    const car = this.cars.get(vin)
+    if (!car) return {}
+    const colour = `colour=${rgbToColourName(car.rgb)}`
+    return { front: colour, rear: colour, left: colour, right: colour }
+  }
+
+  /**
+   * Lamp evidence hint for the offline AI (faults, not telemetry).
+   * @param vin - Car VIN.
+   * @param camera - Evidence camera.
+   * @returns e.g. 'headlights=off'.
+   */
+  evidenceHint(vin: string, camera: 'front' | 'rear'): string {
+    const lamp: LampFault = camera === 'front' ? 'headlights' : 'brake_lights'
+    const off = this.cars.get(vin)?.faults.has(lamp) ?? false
+    return `${lamp}=${off ? 'off' : 'on'}`
+  }
+
+  /**
+   * Assist truth hint for the offline AI: workers near the stopped car.
+   * @param case_id - Assist case.
+   * @returns e.g. 'worker=1'.
+   */
+  assistHint(case_id: string): string {
+    const record = this.assists.get(case_id)
+    const car = record ? this.cars.get(record.vin) : undefined
+    if (!car) return 'worker=0'
+    let workers = 0
+    for (const prop of this.props.values()) {
+      if (prop.kind !== 'worker') continue
+      if (Math.hypot(prop.x - car.x, prop.y - car.y) <= 25) workers++
+    }
+    return `worker=${workers}`
+  }
+
+  /**
    * Stored clip for an assist case (empty until the evidence camera lands in M5).
    * @param case_id - Case id.
    * @returns base64 frames.
@@ -292,8 +454,8 @@ export class ThreeJsEngine implements DrivingSystem {
   }
 
   /**
-   * Stops the car and emits `assist.request`. Clip frames and the manoeuvres land with M5/M6;
-   * the offline AI answers from the truth hints until then.
+   * Stops the car and emits `assist.request` (M6.3). The clip comes from the attached chase
+   * camera when there is one; the offline AI answers from the truth hints otherwise.
    * @param vin - Car VIN.
    * @param case_id - Case id, e.g. 'AC-VIN-1-1'.
    * @param reason - Obstacle description.
@@ -301,11 +463,13 @@ export class ThreeJsEngine implements DrivingSystem {
    */
   raiseAssist(vin: string, case_id: string, reason: string, options: AssistOption[]): void {
     const car = this.cars.get(vin)
+    const frames = [...this.assistFrames(vin)]
     if (car) {
       car.stoppedForAssist = true
+      car.assistPending = true
       car.speed_mps = 0
     }
-    this.assists.set(case_id, { vin, options: [...options], frames: [] })
+    this.assists.set(case_id, { vin, options: [...options], frames })
     this.emit({
       event: 'assist.request',
       case_id,
@@ -313,19 +477,19 @@ export class ThreeJsEngine implements DrivingSystem {
       location: car?.location ?? '',
       reason,
       options: [...options],
-      clip_frames: [],
+      clip_frames: [...frames],
     })
   }
 
   /**
-   * Spawns a prop.
+   * Spawns a prop (M6.1).
    * @param id - Prop id.
    * @param kind - Prop kind.
    * @param x - Map x.
    * @param y - Map y.
    * @param yaw - Degrees.
    */
-  spawnProp(id: string, kind: string, x: number, y: number, yaw: number): void {
+  spawnProp(id: string, kind: PropKind, x: number, y: number, yaw: number): void {
     this.props.set(id, { id, kind, x, y, yaw })
   }
 
@@ -431,6 +595,7 @@ export class ThreeJsEngine implements DrivingSystem {
       preciseElapsed: 0,
       travelled_m: 0,
       total_m: routeLength(route),
+      routine: null,
     })
   }
 
@@ -456,6 +621,7 @@ export class ThreeJsEngine implements DrivingSystem {
       preciseElapsed: 0,
       travelled_m: 0,
       total_m: Math.hypot(destination.x - car.x, destination.y - car.y),
+      routine: null,
     }
   }
 
@@ -497,6 +663,37 @@ export class ThreeJsEngine implements DrivingSystem {
     }
     if (car.stoppedForAssist) {
       car.speed_mps = 0
+      return
+    }
+    if (mission.routine) {
+      this.tickRoutine(car, mission, dt)
+      return
+    }
+
+    // Waiting for removal (M6.4): hold until the corridor clears, then record the wait.
+    if (car.waitingCase) {
+      car.speed_mps = 0
+      if (this.nearestProp(car, CLEAR_RADIUS_M, BLOCKED_LATERAL_M) !== null) {
+        car.waited_s += dt
+        return
+      }
+      const caseId = car.waitingCase
+      const outcome = this.assistOutcomes[caseId] as Record<string, unknown> | undefined
+      this.assistOutcomes[caseId] = { ...outcome, waited_s: Math.round(car.waited_s * 10) / 10 }
+      car.waitingCase = null
+      return
+    }
+
+    // Pass-left backup (M6.4): back up for room before swerving around the obstacle.
+    if (car.avoidPhase === 'backup') {
+      car.speed_mps = AVOID_BACKUP_SPEED_MPS
+      car.x -= Math.cos(car.yaw) * AVOID_BACKUP_SPEED_MPS * dt
+      car.y -= Math.sin(car.yaw) * AVOID_BACKUP_SPEED_MPS * dt
+      const backed = Math.hypot(
+        car.x - (car.avoidStart?.x ?? car.x),
+        car.y - (car.avoidStart?.y ?? car.y),
+      )
+      if (backed >= AVOID_BACKUP_M) car.avoidPhase = 'swerve'
       return
     }
 
@@ -541,7 +738,7 @@ export class ThreeJsEngine implements DrivingSystem {
     if (mission.precise) {
       if (distanceToEnd <= SQUARE_UP_RADIUS_M) {
         this.squareUp(car, last)
-        this.finish(car, mission)
+        this.arrive(car, mission)
         return
       }
       if (distanceToEnd <= PULL_OVER_RUN_M) {
@@ -549,12 +746,12 @@ export class ThreeJsEngine implements DrivingSystem {
         targetSpeed = Math.min(targetSpeed, PULL_OVER_SPEED_MPS)
         if (mission.preciseElapsed >= PRECISE_TIMEOUT_S) {
           this.squareUp(car, last)
-          this.finish(car, mission)
+          this.arrive(car, mission)
           return
         }
       }
     } else if (distanceToEnd <= ARRIVAL_RADIUS_M) {
-      this.finish(car, mission)
+      this.arrive(car, mission)
       return
     }
 
@@ -564,6 +761,53 @@ export class ThreeJsEngine implements DrivingSystem {
     if (leader !== null) {
       const required = QUEUE_GAP_M + car.speed_mps * QUEUE_HEADWAY_S
       targetSpeed = Math.min(targetSpeed, Math.max(0, (leader - required) / dt))
+    }
+
+    // Obstacle scan (M6.2): brake for props and workers inside the lookahead envelope. While a
+    // pass-left runs the offset lane keeps the clearance, so the scan does not apply.
+    if (car.avoidPhase === null) {
+      const scanRange = OBSTACLE_BASE_M + (car.speed_mps * car.speed_mps) / (2 * PROP_DECEL_MPS2)
+      const obstacle = this.nearestProp(car, scanRange, OBSTACLE_LATERAL_M)
+      if (obstacle !== null) {
+        targetSpeed = Math.min(
+          targetSpeed,
+          Math.sqrt(2 * PROP_DECEL_MPS2 * Math.max(0, obstacle.ahead - PROP_STOP_GAP_M)),
+        )
+      }
+    }
+
+    // Blocked detection (M6.3): still for 5 s with a non-plant obstacle close ahead.
+    const near = this.nearestProp(car, BLOCKED_RADIUS_M, BLOCKED_LATERAL_M)
+    if (car.speed_mps < BLOCKED_SPEED_MPS && near !== null && car.avoidPhase === null) {
+      car.blockedFor += dt
+    } else {
+      car.blockedFor = 0
+    }
+    if (car.blockedFor >= BLOCKED_TIME_S && !car.assistPending && !car.waitingCase) {
+      this.raiseBlockedAssist(car, near?.kind ?? 'box')
+      return
+    }
+
+    // Pass-left swerve (M6.4): crawl with a lateral offset until the obstacle is well behind.
+    if (car.avoidPhase === 'swerve') {
+      targetSpeed = Math.min(targetSpeed, AVOID_SPEED_MPS)
+      const closest = this.nearestPropDistance(car)
+      if (closest !== null) car.avoidClosest = Math.min(car.avoidClosest, closest)
+      // Keep the offset until the obstacle is well behind: clearing while it is still abeam
+      // would merge the car straight back into it.
+      const tracked = this.nearestProp(car, AVOID_TRACK_RANGE_M, AVOID_TRACK_LATERAL_M, true)
+      if (tracked === null || tracked.ahead < -0.5) {
+        car.avoidPhase = null
+        if (car.avoidCase) {
+          const outcome = this.assistOutcomes[car.avoidCase] as Record<string, unknown> | undefined
+          this.assistOutcomes[car.avoidCase] = {
+            ...outcome,
+            closest_m: Math.round(car.avoidClosest * 100) / 100,
+            contact: false,
+          }
+          car.avoidCase = null
+        }
+      }
     }
 
     const stopRadius = mission.precise ? SQUARE_UP_RADIUS_M : ARRIVAL_RADIUS_M
@@ -576,6 +820,13 @@ export class ThreeJsEngine implements DrivingSystem {
       lookahead = {
         x: last.x + Math.cos(pullYaw) * PULL_OVER_AIM_M,
         y: last.y + Math.sin(pullYaw) * PULL_OVER_AIM_M,
+      }
+    }
+    if (car.avoidPhase === 'swerve') {
+      // Pass on the left of the lane (heading rotated +90 degrees in the map frame).
+      lookahead = {
+        x: lookahead.x - Math.sin(car.yaw) * AVOID_OFFSET_M,
+        y: lookahead.y + Math.cos(car.yaw) * AVOID_OFFSET_M,
       }
     }
     const steer = purePursuitSteer(car, lookahead)
@@ -593,6 +844,99 @@ export class ThreeJsEngine implements DrivingSystem {
       if (Math.hypot(point.x - x, point.y - y) <= PULLOVER_RADIUS_M) return point
     }
     return null
+  }
+
+  /**
+   * Nearest prop inside a range and lateral corridor (M6.2/M6.3). With `bidirectional` the
+   * corridor extends behind the car too (used to keep a pass-left active until it is past).
+   * @param car - Scanning car.
+   * @param range - Lookahead distance, metres.
+   * @param lateral - Half-width of the corridor, metres.
+   * @param bidirectional - Count props behind the car as well.
+   * @returns Kind, ahead distance and straight distance, or null.
+   */
+  private nearestProp(
+    car: EngineCar,
+    range: number,
+    lateral: number,
+    bidirectional = false,
+  ): { kind: PropKind; ahead: number; distance: number } | null {
+    const fx = Math.cos(car.yaw)
+    const fy = Math.sin(car.yaw)
+    let best: { kind: PropKind; ahead: number; distance: number } | null = null
+    for (const prop of this.props.values()) {
+      const dx = prop.x - car.x
+      const dy = prop.y - car.y
+      const ahead = dx * fx + dy * fy
+      const reach = bidirectional ? Math.abs(ahead) : ahead
+      if (reach > range) continue
+      if (!bidirectional && ahead <= 0) continue
+      if (Math.abs(dx * fy - dy * fx) > lateral) continue
+      const distance = Math.hypot(dx, dy)
+      if (best === null || reach < Math.abs(best.ahead)) best = { kind: prop.kind, ahead, distance }
+    }
+    return best
+  }
+
+  /** Straight distance to the nearest prop of any kind, or null. */
+  private nearestPropDistance(car: EngineCar): number | null {
+    let nearest: number | null = null
+    for (const prop of this.props.values()) {
+      const distance = Math.hypot(prop.x - car.x, prop.y - car.y)
+      if (nearest === null || distance < nearest) nearest = distance
+    }
+    return nearest
+  }
+
+  /**
+   * Raises the assist case for a blocked car (M6.3): a worker always offers waiting; anything
+   * else also offers passing left or the Lane C reroute.
+   * @param car - Blocked car.
+   * @param kind - Blocking prop kind.
+   */
+  private raiseBlockedAssist(car: EngineCar, kind: PropKind): void {
+    const options: AssistOption[] =
+      kind === 'worker'
+        ? ['wait_for_removal']
+        : ['wait_for_removal', 'pass_left_3kmh', 'reroute_lane_c']
+    car.assistSeq += 1
+    this.raiseAssist(
+      car.vin,
+      `AC-${car.vin}-${car.assistSeq}`,
+      `${kind} blocking the lane ahead`,
+      options,
+    )
+  }
+
+  /**
+   * Replaces the mission route with one that runs through Lane C (M6.4).
+   * @param car - Car whose assist chose the reroute.
+   * @returns True when a Lane C route was built.
+   */
+  private rerouteViaLaneC(car: EngineCar): boolean {
+    const mission = car.mission
+    if (!mission) return false
+    const destination = mission.waypoints[mission.waypoints.length - 1]
+    try {
+      const start = this.nearestPoint(car.x, car.y)
+      const names: PointName[] = [start, ...this.graph.route(start, 'lane_c').slice(1)]
+      names.push(...this.graph.route('lane_c', destination).slice(1))
+      const route: PathPoint[] = []
+      for (let index = 0; index < names.length - 1; index++) {
+        const samples = sampleCenterline(this.point(names[index]), this.point(names[index + 1]))
+        for (let sample = index === 0 ? 0 : 1; sample < samples.length; sample++) {
+          route.push(samples[sample])
+        }
+      }
+      if (route.length === 0) return false
+      mission.route = route
+      mission.routeIndex = 0
+      mission.travelled_m = 0
+      mission.total_m = routeLength(route)
+      return true
+    } catch {
+      return false
+    }
   }
 
   /**
@@ -627,6 +971,110 @@ export class ThreeJsEngine implements DrivingSystem {
     car.y = point.y
     car.yaw = (point.yaw * Math.PI) / 180
     car.speed_mps = 0
+  }
+
+  /**
+   * Final waypoint reached: start the R-12 routine when the mission asks for one, else finish.
+   * @param car - Car that arrived.
+   * @param mission - Its mission.
+   */
+  private arrive(car: EngineCar, mission: ActiveMission): void {
+    car.speed_mps = 0
+    if (mission.cmd.routine) {
+      const steps = r12Steps(mission.cmd.routine_steps)
+      if (steps.length > 0) {
+        mission.routine = {
+          id: mission.cmd.routine,
+          steps,
+          index: 0,
+          elapsed: 0,
+          startPose: { x: car.x, y: car.y },
+          brakingFrom: null,
+        }
+        return
+      }
+    }
+    this.finish(car, mission)
+  }
+
+  /**
+   * Runs the R-12 sequence: standing steps on timers, a real 3 m reverse and a real 20 km/h
+   * brake test; lamp state follows the step (indicators blink). Each finished step emits
+   * `track.step`; the last one finishes the mission. Telemetry stays nominal under faults (M5.2).
+   */
+  private tickRoutine(car: EngineCar, mission: ActiveMission, dt: number): void {
+    const routine = mission.routine
+    if (!routine) return
+    const spec = routine.steps[routine.index]
+    if (!spec) {
+      car.lamps = offLamps()
+      this.finish(car, mission)
+      return
+    }
+    routine.elapsed += dt
+    const telemetry: Record<string, unknown> = { ...spec.telemetry }
+    let done = false
+
+    if (spec.name === 'reverse') {
+      const travelled = Math.hypot(car.x - routine.startPose.x, car.y - routine.startPose.y)
+      const step = Math.min(REVERSE_SPEED_MPS * dt, Math.max(0, R12_REVERSE_M - travelled))
+      car.x -= Math.cos(car.yaw) * step
+      car.y -= Math.sin(car.yaw) * step
+      car.speed_mps = dt > 0 ? step / dt : 0
+      const total = travelled + step
+      telemetry.distance_m = Math.round(total * 100) / 100
+      telemetry.lateral_m = 0
+      done = total >= R12_REVERSE_M - 1e-9 || routine.elapsed >= spec.duration_s
+    } else if (spec.name === 'brake_test') {
+      const peak = R12_BRAKE_TEST_KMH / 3.6
+      if (routine.brakingFrom === null && car.speed_mps < peak) {
+        car.speed_mps = Math.min(peak, car.speed_mps + MAX_ACCEL_MPS2 * dt)
+      } else {
+        if (routine.brakingFrom === null) {
+          routine.brakingFrom = car.speed_mps
+          routine.startPose = { x: car.x, y: car.y }
+        }
+        car.speed_mps = Math.max(0, car.speed_mps - BRAKE_MPS2 * dt)
+      }
+      car.x += Math.cos(car.yaw) * car.speed_mps * dt
+      car.y += Math.sin(car.yaw) * car.speed_mps * dt
+      if (routine.brakingFrom !== null) {
+        telemetry.start_speed_kmh = Math.round(routine.brakingFrom * 3.6 * 10) / 10
+        telemetry.stopping_distance_m =
+          Math.round(Math.hypot(car.x - routine.startPose.x, car.y - routine.startPose.y) * 100) /
+          100
+      }
+      done = routine.brakingFrom !== null && car.speed_mps <= 0
+    } else {
+      car.speed_mps = 0
+      done = routine.elapsed >= spec.duration_s
+    }
+
+    if (spec.name === 'indicators') {
+      const blink = Math.floor(routine.elapsed / R12_BLINK_PERIOD_S) % 2 === 0
+      car.lamps = { ...offLamps(), indicator_left: blink, indicator_right: !blink }
+    } else {
+      car.lamps = { ...spec.lamps }
+    }
+
+    if (!done) return
+    this.emit({
+      event: 'track.step',
+      vin: car.vin,
+      mission_id: mission.cmd.mission_id,
+      routine: routine.id,
+      step: spec.step,
+      name: spec.name,
+      telemetry,
+    })
+    routine.index++
+    routine.elapsed = 0
+    routine.brakingFrom = null
+    if (routine.index >= routine.steps.length) {
+      car.lamps = offLamps()
+      car.speed_mps = 0
+      this.finish(car, mission)
+    }
   }
 
   private finish(car: EngineCar, mission: ActiveMission): void {

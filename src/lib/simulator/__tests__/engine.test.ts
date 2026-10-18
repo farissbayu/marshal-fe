@@ -203,3 +203,92 @@ describe('multi-car queue and yard moves (M4)', () => {
     expect(pose.y).toBeCloseTo(POINTS['yard.Y3'].y, 5)
   })
 })
+
+describe('R-12 routine and faults (M5)', () => {
+  function runRoutine(steps?: number[]) {
+    const engine = new ThreeJsEngine()
+    engine.spawn('VIN-R', { at: 'line_end', colour: [0, 0, 1] })
+    const events: Array<{ step: number; name: string; telemetry: Record<string, unknown> }> = []
+    engine.on('track.step', (event) => events.push(event))
+    let done = false
+    engine.on('mission.done', (event: MissionDoneEvent) => {
+      if (event.mission_id === 'M-routine') done = true
+    })
+    engine.send({
+      op: 'mission.go',
+      mission_id: 'M-routine',
+      vin: 'VIN-R',
+      waypoints: ['test_track'],
+      routine: 'R-12',
+      ...(steps ? { routine_steps: steps } : {}),
+    })
+    const finished = runUntil(engine, () => done)
+    return { engine, events, finished }
+  }
+
+  it('runs the six steps at the test track and emits every track.step', () => {
+    const { engine, events, finished } = runRoutine()
+    expect(finished).toBe(true)
+    expect(events.map((event) => event.step)).toEqual([1, 2, 3, 4, 5, 6])
+    expect(events.map((event) => event.name)).toEqual([
+      'headlights',
+      'indicators',
+      'brake_lights',
+      'reverse',
+      'brake_test',
+      'full_lock',
+    ])
+    expect(events[0].telemetry).toEqual({ headlights: 'ON' })
+    expect(events[3].telemetry.gear).toBe('R')
+    expect(Number(events[3].telemetry.distance_m)).toBeCloseTo(3.02, 1)
+    expect(Number(events[4].telemetry.start_speed_kmh)).toBeGreaterThanOrEqual(19)
+    expect(Number(events[4].telemetry.stopping_distance_m)).toBeGreaterThan(3)
+    expect(engine.lampsOf('VIN-R')).toEqual({
+      headlights: false,
+      brake_lights: false,
+      reverse: false,
+      indicator_left: false,
+      indicator_right: false,
+    })
+  })
+
+  it('runs only the requested re-check steps (M5.6)', () => {
+    const { events, finished } = runRoutine([1])
+    expect(finished).toBe(true)
+    expect(events.map((event) => event.step)).toEqual([1])
+  })
+
+  it('keeps step telemetry nominal while a lamp is faulty (M5.2/M5.3)', () => {
+    const engine = new ThreeJsEngine()
+    engine.spawn('VIN-D', { at: 'line_end', colour: [0, 0, 1] })
+    engine.setFault('VIN-D', new Set(['headlights']))
+    let first: Record<string, unknown> | null = null
+    engine.on('track.step', (event) => {
+      if (event.step === 1) first = event.telemetry
+    })
+    let done = false
+    engine.on('mission.done', (event: MissionDoneEvent) => {
+      if (event.mission_id === 'M-dark') done = true
+    })
+    engine.send({
+      op: 'mission.go',
+      mission_id: 'M-dark',
+      vin: 'VIN-D',
+      waypoints: ['test_track'],
+      routine: 'R-12',
+      routine_steps: [1],
+    })
+    expect(runUntil(engine, () => done)).toBe(true)
+    expect(first).toEqual({ headlights: 'ON' })
+    expect(engine.faultsOf('VIN-D')).toEqual(['headlights'])
+  })
+
+  it('clears faults on repair (M5.4)', () => {
+    const engine = new ThreeJsEngine()
+    engine.spawn('VIN-F', { at: 'line_end', colour: [0, 0, 1] })
+    engine.setFault('VIN-F', new Set(['headlights']))
+    expect(engine.faultsOf('VIN-F')).toEqual(['headlights'])
+    engine.repair('VIN-F', ['headlights'])
+    expect(engine.faultsOf('VIN-F')).toEqual([])
+  })
+})

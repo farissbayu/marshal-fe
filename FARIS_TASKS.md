@@ -193,13 +193,23 @@ src/
 ### Milestone 5 — On-Board Cameras, Routine R-12 & Fault System
 **Goal:** Routine R-12 test sequence runs with 6 steps; VIN-DARK fails headlight evidence, VIN-OK passes.
 
-- [ ] **M5.1 On-board vehicle camera rig (`src/lib/simulator/cameras/carCamera.ts`)**
+> Implemented in `src/lib/simulator/`: `actors/routine.ts` (the six step specs with durations, lamp
+> states, nominal telemetry, subset filter), engine routine execution (standing steps on timers,
+> real 3 m reverse and real 20 km/h brake test, `track.step` per step, lamps incl. indicator blink),
+> `lampsOf()`/`faultsOf()`, and `cameras/carCamera.ts` (chase + front/rear evidence poses, rolling
+> 8-frame buffers with 0.5 s / 1.25 s cadences, injectable renderer/encoder). Deviations: full_lock
+> records the radii without driving the arcs (no open area modelled); frames come off the renderer
+> canvas, not a render target + pixel read-back; the rig is not yet bound to the engine/viewer
+> (same integration note as the gate camera). M5.5/M5.6 lamp flow + server fn are Qais's and live
+> in `src/lib/marshal/flows/lamp.ts` / `src/lib/serverFns/`.
+
+- [x] **M5.1 On-board vehicle camera rig (`src/lib/simulator/cameras/carCamera.ts`)**
   - **Assist (Chase):** Offset $(-6\text{m}, 0, 3\text{m})$, Pitch $-12^\circ$, FOV $90^\circ$, 10s rolling buffer (8 frames).
   - **Evidence Rear:** Offset $(-7\text{m}, 0, 1.6\text{m})$, Pitch $-5^\circ$, Yaw $0^\circ$, FOV $38^\circ$, 4s rolling buffer (8 frames).
   - **Evidence Front:** Offset $(+7.5\text{m}, 0, 1.6\text{m})$, Pitch $-5^\circ$, Yaw $180^\circ$, FOV $38^\circ$, 4s rolling buffer (8 frames).
   - Update tick rate: capture every $0.2\text{s}$ simulated time.
   - Pipeline: `WebGLRenderTarget` $\to$ `readRenderTargetPixels` $\to$ `OffscreenCanvas` $\to$ JPEG blob (quality 0.9). No visual overlays.
-- [ ] **M5.2 Routine R-12 step execution (`src/lib/simulator/actors/routine.ts`)**
+- [x] **M5.2 Routine R-12 step execution (`src/lib/simulator/actors/routine.ts`)**
   Implement 6 distinct test track stages:
   1. **headlights:** Stand braked, LowBeam active, $8\text{s}$, telemetry `{ headlights: "ON" }`.
   2. **indicators:** Alternating L $\leftrightarrow$ R every $1.2\text{s}$, $10\text{s}$, telemetry `{ indicator_left: "BLINK", ... }`.
@@ -209,9 +219,9 @@ src/
   6. **full_lock:** Steering locks: Left $90^\circ$, Right $360^\circ$, Left $270^\circ$ at $5\text{ km/h}$, $\le 90\text{s}$, record turning radii.
   - Emit `track.step` after each step with telemetry payload.
   - Ensure vehicle telemetry always reports nominal status even when hardware faults are active.
-- [ ] **M5.3 Fault injection: `setFault(vin, Set(['headlights']))`**
+- [x] **M5.3 Fault injection: `setFault(vin, Set(['headlights']))`**
   - Disable physical light mesh rendering while keeping internal telemetry reporting `"ON"`.
-- [ ] **M5.4 Defect repair: `repair(vin, defects)`**
+- [x] **M5.4 Defect repair: `repair(vin, defects)`**
   - Clear assigned faults and restore visual light rendering.
 
 ---
@@ -219,24 +229,37 @@ src/
 ### Milestone 6 — Props, Obstacle Detection & Assist Flow (Scene C)
 **Goal:** Dynamic obstacle triggers assist request with 8-frame clip; vehicle executes supervisor's command.
 
-- [ ] **M6.1 Dynamic prop management (`src/lib/simulator/actors/props.ts`)**
+> Implemented in `src/lib/simulator/`: `actors/props.ts` (footprints for every kind), engine
+> obstacle scan (envelope 9 m + v^2/8, +-1.8 m corridor, vehicles handled by queuing), blocked
+> detection (still 5 s with an obstacle within 14 m ahead +-3 m) raising `AC-<vin>-<seq>` with
+> `wait_for_removal` always and pass/reroute unless a worker is present, clip frames from an
+> injected chase-camera provider (`EngineOptions.assistFrames`), and the three manoeuvres: wait
+> until the corridor clears (records `waited_s`), pass-left (backs up 6 m for room, crawls at
+> 3 km/h with a 3.5 m offset until the obstacle is behind, records `closest_m`/`contact`), and
+> the Lane C reroute (route rebuilt through `lane_c`; falls back to pass-left when no route).
+> Truth hints (`gateHints`/`evidenceHint`/`assistHint`) make the offline AI work with the engine.
+> Deviations: the pass-left offset is 3.5 m (half the 7 m corridor, lane-width driven); the
+> reroute is not hazard-aware (Lane C is always the alternative); clip frames come from the
+> injected rig, [] until the M5.1 camera is bound.
+
+- [x] **M6.1 Dynamic prop management (`src/lib/simulator/actors/props.ts`)**
   - Implement `spawnProp(id, kind, x, y, yaw)` and `removeProp(id)` for `box`, `worker`, `cone`, `barrel`, `truck`.
-- [ ] **M6.2 Forward obstacle scanning**
+- [x] **M6.2 Forward obstacle scanning**
   - Dynamic lookahead envelope: $D = 9\text{m} + \frac{v^2}{2 \times 4}$, lateral corridor $\pm 1.8\text{m}$ of lane centreline.
   - Braking triggers for props and pedestrian workers (vehicles governed by queuing rules).
   - Explicitly ignore parked cars located on the shoulder.
-- [ ] **M6.3 Blocked detection & `assist.request` generation**
+- [x] **M6.3 Blocked detection & `assist.request` generation**
   - Trigger condition: Speed $< 0.6\text{ km/h}$ for $> 5\text{s}$ with non-plant obstacle within $14\text{m}$ ahead and $\pm 3\text{m}$ lateral.
   - Emit `assist.request` with:
     - `case_id`: `"AC-<vin>-<seq>"`
     - `reason`: obstacle description string
     - `options`: subset of `['wait_for_removal', 'pass_left_3kmh', 'reroute_lane_c']`
     - `clip_frames`: 8 base64 JPEG frames sampled over the last $10\text{s}$ from chase/assist camera.
-- [ ] **M6.4 Assist command execution (`AssistChooseCmd`)**
+- [x] **M6.4 Assist command execution (`AssistChooseCmd`)**
   - **`wait_for_removal`:** Hold position until corridor clears; log wait duration.
   - **`pass_left_3kmh`:** Steer $7\text{m}$ into adjacent left corridor, crawl at $3\text{ km/h}$, return after $6\text{m}$ clear, record closest proximity & contact metrics.
   - **`reroute_lane_c`:** Calculate alternative route through Lane C connector at standard speed.
-- [ ] **M6.5 Media retrieval: `getAssistMedia(case_id)`**
+- [x] **M6.5 Media retrieval: `getAssistMedia(case_id)`**
   - Return cached 8 base64 JPEG frames for dashboard display.
 
 ---
