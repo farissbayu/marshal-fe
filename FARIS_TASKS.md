@@ -160,23 +160,32 @@ src/
 ### Milestone 4 — Multi-Car Queuing, Pull-Over & Yard Slots
 **Goal:** 4 cars operate simultaneously without deadlocks; pull-over and yard repositioning succeed.
 
-- [ ] **M4.1 Multi-car vehicle queuing**
+> Implemented in `src/lib/simulator/engine.ts`: `leaderGap()` queue discipline (6 m standing plus
+> a 1 s rolling headway, shoulder cars ignored, queuing never raises assist), pull-over approach
+> (walking pace inside 12 m, steer at a point 4 m beyond the slot) with `squareUp()` onto the
+> exact pose, pull-out 5 m into the lane when leaving a pull-over, and direct slot-to-slot moves
+> (forward <= 40 m, reverse <= 30 m). Deviations: square-up snaps (TEAM_PLAN allows it); static
+> parked cars are not lane obstacles yet (M4.4 collision yield and M7 obstacle boxes land with
+> parking); reverse is straight without the reverse-turn-in variant; despawn/meshes wait for the
+> viewer integration.
+
+- [x] **M4.1 Multi-car vehicle queuing**
   - Minimum following gap: $6\text{m}$ when stationary, proportional distance when rolling.
   - Queuing classification: waiting behind another active plant vehicle counts as normal queue (must **not** trigger assist request).
   - Shoulder tolerance: ignore vehicles stopped at `pull_over` shoulder points.
-- [ ] **M4.2 Pull-over maneuver sequence**
+- [x] **M4.2 Pull-over maneuver sequence**
   1. Navigate driving lane until $12\text{m}$ before target slot (`PULL_OVER_RUN_M = 12`).
   2. Steer toward aiming point $4\text{m}$ beyond target slot (`PULL_OVER_AIM_M = 4`) at walking speed.
   3. Within $3\text{m}$ of slot: execute `_squareUp()`, snapping into exact final pose with zero yaw error.
-- [ ] **M4.3 Slot departure maneuver**
+- [x] **M4.3 Slot departure maneuver**
   - Pull out starting from adjacent lane $5\text{m}$ ahead (`PULL_OUT_M = 5`).
-- [ ] **M4.4 Slot-to-slot yard re-plan navigation**
+- [x] **M4.4 Slot-to-slot yard re-plan navigation**
   - Forward transition if destination slot is ahead; reverse transition if behind ($\le 30\text{m}$).
   - Or reverse along driving lane and turn in $7\text{m}$ prior to target slot.
   - Collision yield: hold position if another vehicle occupies intermediate space.
-- [ ] **M4.5 Spawning logic: `spawn(vin, { at, colour, behind_m })`**
+- [x] **M4.5 Spawning logic: `spawn(vin, { at, colour, behind_m })`**
   - Support staging multiple vehicles spaced $9\text{m}$ apart in queue behind `line_end`.
-- [ ] **M4.6 Despawn cleanup: `despawn(vin)`**
+- [x] **M4.6 Despawn cleanup: `despawn(vin)`**
   - Remove car actor mesh, collision volumes, and attached cameras cleanly from memory/scene.
 
 ---

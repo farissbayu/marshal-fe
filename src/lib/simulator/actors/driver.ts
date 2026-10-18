@@ -15,10 +15,7 @@ export const MAX_ACCEL_MPS2 = 1.2
 export const BRAKE_MPS2 = 2.4
 /** Normal waypoint arrival radius, metres (TEAM_PLAN M2.4: 3-4 m). */
 export const ARRIVAL_RADIUS_M = 3.5
-/** Precise stop: creep inside this radius at walking pace, stop within the tolerance or timeout. */
-export const CREEP_RADIUS_M = 3
-export const CREEP_SPEED_MPS = 0.8
-export const PRECISE_STOP_RADIUS_M = 0.4
+/** Pull-over approach: square up after this long if the lane never clears. */
 export const PRECISE_TIMEOUT_S = 30
 /** Gate approach: slow inside the zone and record the speed within the record radius. */
 export const GATE_SLOW_ZONE_M = 15

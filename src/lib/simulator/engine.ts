@@ -2,6 +2,13 @@
 // graph, steps the driver at a fixed 0.1 s and emits status (1 Hz) and mission.done. Implements
 // the Marshal DrivingSystem contract. Pure simulation: no three.js import, so tests run headless
 // and the viewer reads poses. Gate / evidence / parking ports land in M3 / M5 / M7.
+//
+// Multi-car (M4): queueing keeps a 6 m standing gap plus a rolling headway behind lane traffic,
+// pull-overs approach at walking pace and square up onto the exact point pose, departing cars
+// pull out 5 m into the lane, and slot-to-slot moves drive forward (<= 40 m) or reverse (<= 30 m).
+// shortcut: square-up snaps the pose (TEAM_PLAN allows it); static parked cars are not lane
+// obstacles yet (M4.4 collision yield + M7 obstacle boxes land with parking); reversing backs up
+// straight without the reverse-turn-in variant.
 
 import { isPointName, type NamedPoint, type PointName, YARD_SLOTS } from '#/lib/marshal/points'
 import type {
@@ -19,8 +26,6 @@ import {
   ARRIVAL_RADIUS_M,
   approachSpeed,
   BRAKE_MPS2,
-  CREEP_RADIUS_M,
-  CREEP_SPEED_MPS,
   FIXED_STEP_S,
   GATE_RECORD_RADIUS_M,
   GATE_SLOW_ZONE_M,
@@ -28,7 +33,6 @@ import {
   LOOKAHEAD_M,
   nearestIndex,
   type PathPoint,
-  PRECISE_STOP_RADIUS_M,
   PRECISE_TIMEOUT_S,
   pointAhead,
   purePursuitSteer,
@@ -41,8 +45,28 @@ import { sampleCenterline } from './world/roadBuilder'
 export const DEFAULT_SPEED_KMH = 10
 /** Status event period, seconds (TEAM_PLAN M2.5: 1 Hz). */
 export const STATUS_PERIOD_S = 1
-/** Final mission waypoints that need the precise creep-and-stop (TEAM_PLAN M2.4). */
+/** Final mission waypoints that need the pull-over approach (TEAM_PLAN M2.4/M4.2). */
 export const PRECISE_WAYPOINTS: ReadonlySet<string> = new Set([...YARD_SLOTS, 'rework.electrical'])
+
+/** Queuing (TEAM_PLAN M4.1): centre-to-centre gap standing, plus a rolling headway. */
+export const QUEUE_GAP_M = 6
+export const QUEUE_HEADWAY_S = 1
+/** Pull-over approach (TEAM_PLAN M4.2): walking pace from the run distance, square up at 3 m. */
+export const PULL_OVER_RUN_M = 12
+export const PULL_OVER_SPEED_MPS = 1.4
+export const PULL_OVER_AIM_M = 4
+export const SQUARE_UP_RADIUS_M = 3
+/** Slot departure (TEAM_PLAN M4.3): leave from the lane point this far ahead. */
+export const PULL_OUT_M = 5
+/** Slot-to-slot moves (TEAM_PLAN M4.4): direct when within these distances. */
+export const SLOT_MOVE_FORWARD_LIMIT_M = 40
+export const SLOT_MOVE_REVERSE_LIMIT_M = 30
+export const REVERSE_SPEED_MPS = 1
+/** Queue check corridor and lookahead, metres. */
+const QUEUE_LATERAL_M = 2.5
+const QUEUE_LOOKAHEAD_M = 40
+/** A car within this of a pull-over point is parked, not queueing. */
+const PULLOVER_RADIUS_M = 2
 
 type LampFault = 'headlights' | 'brake_lights' | 'indicators'
 
@@ -53,11 +77,13 @@ type ActiveMission = {
   waypointIndex: number
   route: PathPoint[]
   routeIndex: number
-  /** Final waypoint is a pull-over: creep and stop within tolerance. */
+  /** Final waypoint is a pull-over: approach at walking pace, then square up on the pose. */
   precise: boolean
+  /** Slot-to-slot move driven in reverse. */
+  reverse: boolean
   /** Gate speed already recorded for this mission (first crossing wins). */
   gateRecorded: boolean
-  creepElapsed: number
+  preciseElapsed: number
   travelled_m: number
   total_m: number
 }
@@ -104,6 +130,8 @@ export class ThreeJsEngine implements DrivingSystem {
   readonly parkingLog: Record<string, unknown[]> = {}
 
   private readonly graph: LaneGraph
+  /** Yard slots plus the rework bay: pull-over points (M4.1/M4.2). */
+  private readonly pullOvers: NamedPoint[]
   private readonly cars = new Map<string, EngineCar>()
   private readonly listeners = new Map<SimEvent['event'], Set<Listener>>()
   private readonly assists = new Map<string, AssistRecord>()
@@ -120,6 +148,8 @@ export class ThreeJsEngine implements DrivingSystem {
    */
   constructor(graph: LaneGraph = createLaneGraph()) {
     this.graph = graph
+    const pullOverNames: PointName[] = [...YARD_SLOTS, 'rework.electrical']
+    this.pullOvers = pullOverNames.map((name) => graph.points[name])
   }
 
   /** Sim time in seconds. */
@@ -348,6 +378,32 @@ export class ThreeJsEngine implements DrivingSystem {
   private startMission(car: EngineCar, cmd: MissionGoCmd): void {
     const waypoints = cmd.waypoints.filter((name): name is PointName => isPointName(name))
     if (waypoints.length === 0) return
+    const destination = this.point(waypoints[waypoints.length - 1])
+    const fromPull = this.pullOverAt(car.x, car.y)
+
+    // Slot-to-slot moves (M4.4): drive directly when the target is near enough.
+    if (fromPull && waypoints.length === 1 && this.pullOverAt(destination.x, destination.y)) {
+      const yaw = (fromPull.yaw * Math.PI) / 180
+      const ahead =
+        (destination.x - car.x) * Math.cos(yaw) + (destination.y - car.y) * Math.sin(yaw)
+      if (ahead > 0 && ahead <= SLOT_MOVE_FORWARD_LIMIT_M) {
+        this.assign(car, this.directMission(car, cmd, waypoints, destination, false))
+        return
+      }
+      if (ahead < 0 && -ahead <= SLOT_MOVE_REVERSE_LIMIT_M) {
+        this.assign(car, this.directMission(car, cmd, waypoints, destination, true))
+        return
+      }
+    }
+
+    // Slot departure (M4.3): a car leaving a pull-over starts from the lane 5 m ahead.
+    if (fromPull) {
+      const yaw = (fromPull.yaw * Math.PI) / 180
+      car.x = fromPull.x + Math.cos(yaw) * PULL_OUT_M
+      car.y = fromPull.y + Math.sin(yaw) * PULL_OUT_M
+      car.yaw = yaw
+    }
+
     const start = this.nearestPoint(car.x, car.y)
     const names: PointName[] = [start]
     let cursor: PointName = start
@@ -362,19 +418,49 @@ export class ThreeJsEngine implements DrivingSystem {
         route.push(samples[sample])
       }
     }
-    if (route.length === 0) route.push({ ...this.point(waypoints[waypoints.length - 1]) })
-    car.mission = {
+    if (route.length === 0) route.push({ ...destination })
+    this.assign(car, {
       cmd,
       waypoints,
       waypointIndex: 0,
       route,
       routeIndex: 0,
       precise: PRECISE_WAYPOINTS.has(waypoints[waypoints.length - 1]),
+      reverse: false,
       gateRecorded: false,
-      creepElapsed: 0,
+      preciseElapsed: 0,
       travelled_m: 0,
       total_m: routeLength(route),
+    })
+  }
+
+  private directMission(
+    car: EngineCar,
+    cmd: MissionGoCmd,
+    waypoints: PointName[],
+    destination: NamedPoint,
+    reverse: boolean,
+  ): ActiveMission {
+    return {
+      cmd,
+      waypoints,
+      waypointIndex: 0,
+      route: [
+        { x: car.x, y: car.y },
+        { x: destination.x, y: destination.y },
+      ],
+      routeIndex: 0,
+      precise: true,
+      reverse,
+      gateRecorded: false,
+      preciseElapsed: 0,
+      travelled_m: 0,
+      total_m: Math.hypot(destination.x - car.x, destination.y - car.y),
     }
+  }
+
+  private assign(car: EngineCar, mission: ActiveMission): void {
+    car.mission = mission
     car.held = false
     car.holdLeft = null
   }
@@ -426,6 +512,20 @@ export class ThreeJsEngine implements DrivingSystem {
       mission.waypointIndex++
     }
 
+    // Slot-to-slot reverse (M4.4): back straight towards the target, then square up.
+    if (mission.reverse) {
+      const step = Math.min(REVERSE_SPEED_MPS * dt, Math.max(0, distanceToEnd - SQUARE_UP_RADIUS_M))
+      car.x -= Math.cos(car.yaw) * step
+      car.y -= Math.sin(car.yaw) * step
+      car.speed_mps = dt > 0 ? step / dt : 0
+      mission.travelled_m += step
+      if (distanceToEnd - step <= SQUARE_UP_RADIUS_M + 1e-9) {
+        this.squareUp(car, last)
+        this.finish(car, mission)
+      }
+      return
+    }
+
     let targetSpeed = (mission.cmd.max_speed_kmh ?? DEFAULT_SPEED_KMH) / 3.6
     if (mission.waypoints.includes('inspection_gate')) {
       const gate = this.point('inspection_gate')
@@ -437,15 +537,18 @@ export class ThreeJsEngine implements DrivingSystem {
       }
     }
 
+    // Pull-over (M4.2): walking pace inside the run distance, square up at the radius.
     if (mission.precise) {
-      if (distanceToEnd <= PRECISE_STOP_RADIUS_M) {
+      if (distanceToEnd <= SQUARE_UP_RADIUS_M) {
+        this.squareUp(car, last)
         this.finish(car, mission)
         return
       }
-      if (distanceToEnd <= CREEP_RADIUS_M) {
-        mission.creepElapsed += dt
-        targetSpeed = Math.min(targetSpeed, CREEP_SPEED_MPS)
-        if (mission.creepElapsed >= PRECISE_TIMEOUT_S) {
+      if (distanceToEnd <= PULL_OVER_RUN_M) {
+        mission.preciseElapsed += dt
+        targetSpeed = Math.min(targetSpeed, PULL_OVER_SPEED_MPS)
+        if (mission.preciseElapsed >= PRECISE_TIMEOUT_S) {
+          this.squareUp(car, last)
           this.finish(car, mission)
           return
         }
@@ -455,10 +558,26 @@ export class ThreeJsEngine implements DrivingSystem {
       return
     }
 
-    const stopRadius = mission.precise ? PRECISE_STOP_RADIUS_M : ARRIVAL_RADIUS_M
+    // Queuing (M4.1): hold the standing gap plus a rolling headway behind lane traffic. Queuing
+    // never raises an assist request; only raiseAssist does.
+    const leader = this.leaderGap(car)
+    if (leader !== null) {
+      const required = QUEUE_GAP_M + car.speed_mps * QUEUE_HEADWAY_S
+      targetSpeed = Math.min(targetSpeed, Math.max(0, (leader - required) / dt))
+    }
+
+    const stopRadius = mission.precise ? SQUARE_UP_RADIUS_M : ARRIVAL_RADIUS_M
     const braking = Math.sqrt(2 * BRAKE_MPS2 * Math.max(0, distanceToEnd - stopRadius))
     const speed = approachSpeed(car.speed_mps, Math.min(targetSpeed, braking), dt)
-    const lookahead = pointAhead(mission.route, mission.routeIndex, LOOKAHEAD_M)
+    let lookahead = pointAhead(mission.route, mission.routeIndex, LOOKAHEAD_M)
+    if (mission.precise && distanceToEnd <= PULL_OVER_RUN_M) {
+      // Aim 4 m beyond the pull-over along its heading, so the approach lines up with the slot.
+      const pullYaw = (last.yaw * Math.PI) / 180
+      lookahead = {
+        x: last.x + Math.cos(pullYaw) * PULL_OVER_AIM_M,
+        y: last.y + Math.sin(pullYaw) * PULL_OVER_AIM_M,
+      }
+    }
     const steer = purePursuitSteer(car, lookahead)
     const next = stepVehicle(car, steer, speed, dt)
     mission.travelled_m += Math.hypot(next.x - car.x, next.y - car.y)
@@ -466,6 +585,48 @@ export class ThreeJsEngine implements DrivingSystem {
     car.y = next.y
     car.yaw = next.yaw
     car.speed_mps = next.speed_mps
+  }
+
+  /** Pull-over point within the parked radius of a pose, or null. */
+  private pullOverAt(x: number, y: number): NamedPoint | null {
+    for (const point of this.pullOvers) {
+      if (Math.hypot(point.x - x, point.y - y) <= PULLOVER_RADIUS_M) return point
+    }
+    return null
+  }
+
+  /**
+   * Gap to the nearest car ahead that holds the queue, or null when the lane is clear. A car
+   * holds the queue while it has an active mission or stands still in the lane; cars parked on
+   * pull-over points are ignored (TEAM_PLAN M4.1 shoulder tolerance).
+   */
+  private leaderGap(car: EngineCar): number | null {
+    const fx = Math.cos(car.yaw)
+    const fy = Math.sin(car.yaw)
+    let nearest: number | null = null
+    for (const other of this.cars.values()) {
+      if (other.vin === car.vin) continue
+      if (!other.mission && (other.speed_mps !== 0 || this.pullOverAt(other.x, other.y))) continue
+      const dx = other.x - car.x
+      const dy = other.y - car.y
+      const ahead = dx * fx + dy * fy
+      if (ahead <= 0 || ahead > QUEUE_LOOKAHEAD_M) continue
+      if (Math.abs(dx * fy - dy * fx) > QUEUE_LATERAL_M) continue
+      if (nearest === null || ahead < nearest) nearest = ahead
+    }
+    return nearest
+  }
+
+  /**
+   * Snaps the car onto the exact point pose (TEAM_PLAN M4.2 square-up, zero yaw error).
+   * @param car - Car to place.
+   * @param point - Named point whose pose is taken.
+   */
+  private squareUp(car: EngineCar, point: NamedPoint): void {
+    car.x = point.x
+    car.y = point.y
+    car.yaw = (point.yaw * Math.PI) / 180
+    car.speed_mps = 0
   }
 
   private finish(car: EngineCar, mission: ActiveMission): void {
