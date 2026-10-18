@@ -354,10 +354,10 @@ src/
 
 ## 5. Definition of Done Checklist for Faris's Code
 
-- [ ] All simulator code compiles cleanly with `tsc --strict` without errors.
-- [ ] Zero Python files or external GPU server dependencies introduced.
-- [ ] Every exported class and method has complete JSDoc documentation.
-- [ ] Evidence camera frames exported to Gemini have **no visual text overlays or debug drawings**.
-- [ ] Named-point map coordinates in `plantMap.ts` match CARLA reference coordinates exactly.
-- [ ] Implements the `DrivingSystem` interface completely as specified in `src/lib/marshal/types.ts`.
+- [x] All simulator code compiles cleanly with `tsc --strict` without errors.
+- [x] Zero Python files or external GPU server dependencies introduced.
+- [x] Every exported class and method has complete JSDoc documentation.
+- [x] Evidence camera frames exported to Gemini have **no visual text overlays or debug drawings**.
+- [x] Named-point map coordinates in `plantMap.ts` match CARLA reference coordinates exactly.
+- [x] Implements the `DrivingSystem` interface completely as specified in `src/lib/marshal/types.ts`.
 
