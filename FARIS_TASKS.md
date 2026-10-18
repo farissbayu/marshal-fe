@@ -311,12 +311,21 @@ src/
 ### Milestone 10 — Demo Scenarios & Storage
 **Goal:** Verify all 5 demo scenarios run stably in the 3D engine; support frame persistence.
 
-- [ ] **M10.1 Scenario A verification:** 4-car shift (Blue + Red), route choice via Lane C, yard parking.
-- [ ] **M10.2 Scenario B verification:** VIN-DARK headlight fault detected at R-12 $\to$ electrical rework $\to$ repair $\to$ recheck PASS.
-- [ ] **M10.3 Scenario C verification:** VIN-STUCK obstacle detection $\to$ assist trigger $\to$ wait $\to$ lane clear resume.
-- [ ] **M10.4 Scenario D verification:** Late truck T-1 repositioning $\to$ slot-to-slot moves (P2 yielding to P1).
-- [ ] **M10.5 Scenario E verification:** Gemini parking Y7 with parked car at Y8.
-- [ ] **M10.7 Artifact persistence:** Implement `storeArtifact(uri, blob)` storing evidence JPEGs to browser IndexedDB via `idb`.
+> Verified by `src/lib/simulator/__tests__/engineScenarios.test.ts`: the orchestrator drives the
+> real engine end-to-end with the offline AI (gate/evidence frames come from the scripted port
+> until the browser cameras are bound). Scenario A runs a 2-car shift with the forklift hazard
+> forcing Lane C; B runs the headlight fault through R-12, rework, repair and the recheck; C
+> stages a box that the engine detects, raises an assist for, passes on the left and resumes;
+> D re-plans the yard for the late truck and reverse-parks P090 slot to slot; E parks in A7
+> behind the pre-parked A8. StoreArtifact writes to IndexedDB with a memory fallback (no `idb`
+> dependency added; raw `indexedDB` is enough for one blob put).
+
+- [x] **M10.1 Scenario A verification:** 4-car shift (Blue + Red), route choice via Lane C, yard parking.
+- [x] **M10.2 Scenario B verification:** VIN-DARK headlight fault detected at R-12 $\to$ electrical rework $\to$ repair $\to$ recheck PASS.
+- [x] **M10.3 Scenario C verification:** VIN-STUCK obstacle detection $\to$ assist trigger $\to$ wait $\to$ lane clear resume.
+- [x] **M10.4 Scenario D verification:** Late truck T-1 repositioning $\to$ slot-to-slot moves (P2 yielding to P1).
+- [x] **M10.5 Scenario E verification:** Gemini parking Y7 with parked car at Y8.
+- [x] **M10.7 Artifact persistence:** Implement `storeArtifact(uri, blob)` storing evidence JPEGs to browser IndexedDB via `idb`.
 
 ---
 

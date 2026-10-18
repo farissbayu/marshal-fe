@@ -219,6 +219,36 @@ function distanceToBox(x: number, y: number, box: ObstacleBox): number {
   return Math.hypot(outsideX, outsideY)
 }
 
+/** IndexedDB database for evidence artifacts (M10.7). */
+const ARTIFACT_DB = 'marshal-artifacts'
+const ARTIFACT_STORE = 'artifacts'
+let artifactDb: Promise<IDBDatabase> | null = null
+
+function openArtifactDb(): Promise<IDBDatabase> {
+  artifactDb ??= new Promise((resolve, reject) => {
+    const request = indexedDB.open(ARTIFACT_DB, 1)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(ARTIFACT_STORE)) db.createObjectStore(ARTIFACT_STORE)
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error('artifact db open failed'))
+  })
+  return artifactDb
+}
+
+function putArtifact(uri: string, blob: Blob): Promise<void> {
+  return openArtifactDb().then(
+    (db) =>
+      new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(ARTIFACT_STORE, 'readwrite')
+        tx.objectStore(ARTIFACT_STORE).put(blob, uri)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error ?? new Error('artifact put failed'))
+      }),
+  )
+}
+
 /**
  * Deterministic driving engine over the lane graph. Cars follow sampled centre-lines with
  * pure-pursuit steering; the orchestrator drives it with `mission.go` / `mission.hold` /
@@ -568,12 +598,20 @@ export class ThreeJsEngine implements DrivingSystem {
   }
 
   /**
-   * Stores an artifact in memory (IndexedDB lands with M10.7).
+   * Stores an artifact in IndexedDB (M10.7), falling back to memory without IndexedDB.
    * @param uri - Artifact URI.
    * @param blob - Content.
    */
   async storeArtifact(uri: string, blob: Blob): Promise<void> {
-    this.artifacts.set(uri, blob)
+    if (typeof indexedDB === 'undefined') {
+      this.artifacts.set(uri, blob)
+      return
+    }
+    try {
+      await putArtifact(uri, blob)
+    } catch {
+      this.artifacts.set(uri, blob)
+    }
   }
 
   // --- Simulation -----------------------------------------------------------------------------
