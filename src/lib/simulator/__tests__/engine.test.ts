@@ -76,13 +76,15 @@ describe('ThreeJsEngine', () => {
     expect(count).toBeLessThanOrEqual(11)
   })
 
-  it('creeps into a precise stop within the 0.4 m tolerance', () => {
+  it('squares up onto the pull-over pose with zero error (M4.2)', () => {
     const engine = new ThreeJsEngine()
     engine.spawn('VIN-P', { at: 'line_end', colour: [1, 0, 0] })
     expect(drive(engine, 'VIN-P', 'M1', ['rework.electrical'])).toBe(true)
     const pose = engine.getPositionXY('VIN-P')
     const target = POINTS['rework.electrical']
-    expect(Math.hypot(pose.x - target.x, pose.y - target.y)).toBeLessThanOrEqual(0.4 + 1e-6)
+    expect(pose.x).toBeCloseTo(target.x, 6)
+    expect(pose.y).toBeCloseTo(target.y, 6)
+    expect(pose.yaw).toBeCloseTo(target.yaw, 6)
   })
 
   it('holds a car until the hold expires', () => {
@@ -120,5 +122,84 @@ describe('ThreeJsEngine', () => {
     }
     expect(first.getPositionXY('VIN-1')).toEqual(second.getPositionXY('VIN-1'))
     expect(first.time).toBe(second.time)
+  })
+})
+
+describe('multi-car queue and yard moves (M4)', () => {
+  it('waits 6 m behind a held car and resumes with it (M4.1)', () => {
+    const engine = new ThreeJsEngine()
+    engine.spawn('VIN-A', { at: 'line_end', colour: [0, 0, 1] })
+    engine.spawn('VIN-B', { at: 'line_end', colour: [0, 0, 1], behind_m: 9 })
+    for (const vin of ['VIN-A', 'VIN-B']) {
+      engine.send({
+        op: 'mission.go',
+        mission_id: `M-${vin}`,
+        vin,
+        waypoints: ['buffer_zone_b', 'inspection_gate'],
+      })
+    }
+    engine.send({ op: 'mission.hold', vin: 'VIN-A', duration_s: 8, reason: 'test hold' })
+
+    let minGap = Number.POSITIVE_INFINITY
+    for (let step = 0; step < 70; step++) {
+      engine.tick(0.1)
+      minGap = Math.min(minGap, engine.getPositionXY('VIN-A').x - engine.getPositionXY('VIN-B').x)
+    }
+    expect(minGap).toBeGreaterThanOrEqual(6 - 1e-9)
+    const gap = engine.getPositionXY('VIN-A').x - engine.getPositionXY('VIN-B').x
+    expect(gap).toBeGreaterThanOrEqual(6)
+    expect(gap).toBeLessThanOrEqual(10)
+
+    const startX = engine.getPositionXY('VIN-B').x
+    expect(runUntil(engine, () => engine.getPositionXY('VIN-B').x > startX + 1, 60)).toBe(true)
+  })
+
+  it('ignores cars parked on the yard row when moving along it (M4.1)', () => {
+    // shortcut: static parked cars are not lane obstacles yet, so the move passes them.
+    const engine = new ThreeJsEngine()
+    engine.spawn('VIN-PARKED', { at: 'yard.Y5', colour: [0, 0, 0] })
+    engine.spawn('VIN-Q', { at: 'yard.Y3', colour: [0, 0, 1] })
+    expect(drive(engine, 'VIN-Q', 'M1', ['yard.Y7'])).toBe(true)
+    const pose = engine.getPositionXY('VIN-Q')
+    expect(pose.x).toBeCloseTo(POINTS['yard.Y7'].x, 5)
+    expect(pose.y).toBeCloseTo(POINTS['yard.Y7'].y, 5)
+  })
+
+  it('pulls out 5 m into the lane when leaving a slot (M4.3)', () => {
+    const engine = new ThreeJsEngine()
+    engine.spawn('VIN-S', { at: 'yard.Y2', colour: [0, 0, 1] })
+    engine.send({ op: 'mission.go', mission_id: 'M1', vin: 'VIN-S', waypoints: ['yard.entry'] })
+    const pose = engine.getPositionXY('VIN-S')
+    expect(pose.x).toBeCloseTo(POINTS['yard.Y2'].x, 6)
+    expect(pose.y).toBeCloseTo(POINTS['yard.Y2'].y + 5, 6)
+  })
+
+  it('drives slot-to-slot forward when the target is ahead (M4.4)', () => {
+    const engine = new ThreeJsEngine()
+    engine.spawn('VIN-F', { at: 'yard.Y3', colour: [0, 0, 1] })
+    expect(drive(engine, 'VIN-F', 'F1', ['yard.Y6'])).toBe(true)
+    const pose = engine.getPositionXY('VIN-F')
+    expect(pose.x).toBeCloseTo(POINTS['yard.Y6'].x, 5)
+    expect(pose.y).toBeCloseTo(POINTS['yard.Y6'].y, 5)
+  })
+
+  it('reverses straight to a slot behind without turning (M4.4)', () => {
+    const engine = new ThreeJsEngine()
+    engine.spawn('VIN-R', { at: 'yard.Y6', colour: [0, 0, 1] })
+    let done = false
+    engine.on('mission.done', (event: MissionDoneEvent) => {
+      if (event.mission_id === 'R1') done = true
+    })
+    engine.send({ op: 'mission.go', mission_id: 'R1', vin: 'VIN-R', waypoints: ['yard.Y3'] })
+    let maxDrift = 0
+    for (let step = 0; step < 400 && !done; step++) {
+      engine.tick(0.5)
+      maxDrift = Math.max(maxDrift, Math.abs(engine.getPositionXY('VIN-R').yaw - 90))
+    }
+    expect(done).toBe(true)
+    expect(maxDrift).toBeLessThan(1e-6)
+    const pose = engine.getPositionXY('VIN-R')
+    expect(pose.x).toBeCloseTo(POINTS['yard.Y3'].x, 5)
+    expect(pose.y).toBeCloseTo(POINTS['yard.Y3'].y, 5)
   })
 })
