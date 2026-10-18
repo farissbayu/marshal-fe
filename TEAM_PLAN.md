@@ -312,12 +312,14 @@ export interface DrivingSystem {
 - [ ] **M3.2** `GateCamera.capture(vin, views)` returns `{ front, rear, left, right }` as base64 strings
 
 #### Server Function Tasks
-- [ ] **M3.3** `evaluateGatePhotos(frames: GateFrames): Promise<GateResult>` (`src/lib/serverFns/gate.ts`)
+- [x] **M3.3** `evaluateGatePhotos(frames: GateFrames): Promise<GateResult>` (`src/lib/serverFns/gate.ts`)
   - Calls Gemini with all 4 frames
   - Checks: car colour vs build sheet, body damage confidence
   - Returns: `{ pass: boolean; colour: string; confidence: number; faults: string[] }`
-- [ ] **M3.4** Wire gate flow in `src/lib/marshal/flows/gate.ts`
+- [x] **M3.4** Wire gate flow in `src/lib/marshal/flows/gate.ts`
   - On `mission.done` at `inspection_gate`: capture → server fn → update orchestrator state → emit next mission
+
+_M3.3/M3.4: the gate flow runs on the ScriptedDrivingSystem until Faris's ThreeJsBackend lands; while gate frames are placeholders the image check stays offline (deterministic), not sent to Gemini._
 
 ---
 
@@ -375,11 +377,13 @@ export interface DrivingSystem {
 - [ ] **M5.4** `repair(vin, defects)` → clears fault, lights work again
 
 #### Server Function Tasks
-- [ ] **M5.5** `evaluateLampEvidence(frames: string[], step: string): Promise<LampResult>` (`src/lib/serverFns/lamp.ts`)
+- [x] **M5.5** `evaluateLampEvidence(frames: string[], step: string): Promise<LampResult>` (`src/lib/serverFns/lamp.ts`)
   - Returns: `{ expected: string; observed: string; pass: boolean }`
-- [ ] **M5.6** Wire lamp flow (`src/lib/marshal/flows/lamp.ts`)
+- [x] **M5.6** Wire lamp flow (`src/lib/marshal/flows/lamp.ts`)
   - On `track.step`: if step 1 (headlights) → call `evaluateLampEvidence` with front evidence frames
   - Telemetry ON + camera OFF → FAIL → `mission.go` to `rework.electrical`
+
+_M5.5/M5.6: runs on the ScriptedDrivingSystem; the lamp check stays offline while evidence frames are placeholders (no real JPEGs until M5.1)._
 
 ---
 
@@ -407,9 +411,11 @@ export interface DrivingSystem {
 - [ ] **M6.5** `getAssistMedia(case_id)` returns the stored clip frames (base64 JPEG[])
 
 #### Server Function Tasks
-- [ ] **M6.6** `analyzeAssistClip(frames: string[]): Promise<AssistAnalysis>` (`src/lib/serverFns/assist.ts`)
+- [x] **M6.6** `analyzeAssistClip(frames: string[]): Promise<AssistAnalysis>` (`src/lib/serverFns/assist.ts`)
   - Returns Gemini's scene description + bounding boxes (for dashboard overlay)
   - `{ description: string; boxes: BoundingBox[]; recommendation: AssistOption }`
+
+_M6.6: clip analysis stays offline while the scripted engine's clip frames are placeholders._
 
 ---
 
@@ -434,10 +440,12 @@ export interface DrivingSystem {
 - [ ] **M7.4** Record `parkingLog[vin]` per session (decisions, outcome, final pose)
 
 #### Server Function Tasks
-- [ ] **M7.5** `planParkingStep(pose, obstacles, slot): Promise<ParkingStep>` (`src/lib/serverFns/parking.ts`)
+- [x] **M7.5** `planParkingStep(pose, obstacles, slot): Promise<ParkingStep>` (`src/lib/serverFns/parking.ts`)
   - A* plans up to 3 paths in slot frame
   - Gemini picks a path or says "parked" or "ask a person"
   - Returns: `{ path: ControlSequence; decision: string; confidence: number }`
+
+_M7.5: runs against the ScriptedDrivingSystem's bicycle model until M7.1–M7.4 land on the three.js engine; parking is not image based, so it calls Gemini when configured._
 
 ---
 
@@ -474,32 +482,34 @@ export const fonts = {
 
 #### Component Tasks
 
-- [ ] **M8.1** `Header.tsx` — shift info, clock (IBM Plex Mono 26px), Play/Pause/Next/Restart buttons, "Pause when needed" toggle
-- [ ] **M8.2** Progress bar (amber, 6px, `transition: width 0.3s`)
-- [ ] **M8.3** `KpiBar.tsx` — 6 tiles: Off the line, Decisions made, Needed you, In the yard, Shipped, Rework
+- [x] **M8.1** `Header.tsx` — shift info, clock (IBM Plex Mono 26px), Play/Pause/Next/Restart buttons, "Pause when needed" toggle
+- [x] **M8.2** Progress bar (amber, 6px, `transition: width 0.3s`)
+- [x] **M8.3** `KpiBar.tsx` — 6 tiles: Off the line, Decisions made, Needed you, In the yard, Shipped, Rework
   - Value font: Space Grotesk 700 32px
-- [ ] **M8.4** `GateLanes.tsx` — 4 groups: At gate, Driving to slot, Waiting on you, Rework bay
+- [x] **M8.4** `GateLanes.tsx` — 4 groups: At gate, Driving to slot, Waiting on you, Rework bay
   - Chips: `.chip.gate` (blue bg), `.chip.lane` (light blue), `.chip.alert` (amber + pulse), `.chip.rework` (orange)
   - Click chip → select car → show CarDetail
-- [ ] **M8.5** `Yard.tsx` — 8×10 slot grid
+- [x] **M8.5** `Yard.tsx` — 8×10 slot grid
   - Row labels A–H (IBM Plex Mono 11px, muted)
   - Cell states: `.cell.empty`, `.cell.parked` (sand), `.cell.fresh` (light blue, just parked), `.cell.res` (dashed blue border, en route), `.cell.alert` (amber + pulse, needs you)
   - Selected: `.cell.sel` (white outline)
-- [ ] **M8.6** `Dock.tsx` — truck cards
+- [x] **M8.6** `Dock.tsx` — truck cards
   - States: `.truck` (default), `.truck.loading` (amber bg), `.truck.waiting` (amber + pulse), `.truck.left` (55% opacity)
-- [ ] **M8.7** `CarDetail.tsx` — per-car decision timeline
+- [x] **M8.7** `CarDetail.tsx` — per-car decision timeline
   - Tag classes: `.tag.GEMINI` (blue bg), `.tag.YARD` (dark amber), `.tag.SUPERVISOR` (light bg), `.tag.PLANT` (dark surface)
-- [ ] **M8.8** `WaitingOnYou.tsx` — action cards
+- [x] **M8.8** `WaitingOnYou.tsx` — action cards
   - Image (140px high, cover), body text, option buttons
   - Primary option: `.opt.rec` (amber bg, recommended)
   - Binds to `AssistRequestEvent` and `assist.choose` dispatch
-- [ ] **M8.9** `DecisionFeed.tsx` — scrollable log (520px, overflow-y auto)
+- [x] **M8.9** `DecisionFeed.tsx` — scrollable log (520px, overflow-y auto)
   - Segment toggle: "Everything" / "Exceptions only" (`.seg` / `.seg.on`)
 - [ ] **M8.10** `SimCanvas.tsx` — Three.js canvas overlay
   - Chase camera (main view)
   - Top-down mini-map inset (bottom-right)
   - Gemini note overlay (bottom-left): `"GEMINI · VIN-P1 parking Y8: path B (0.81)"`
   - Notes pushed via `{ op: 'note', text, kind }` from orchestrator
+
+_M8.1–M8.9 live on `/shift`, driven by the scripted demo. GateLanes has a fifth group, "Held for the yard crew" (parking abandoned or yard full); the dock adds `.truck.late` for a truck running late._
 
 ---
 
@@ -508,15 +518,17 @@ export const fonts = {
 **Done when:** Scenes A and D work end-to-end.
 
 #### Tasks
-- [ ] **M9.1** `chooseRouteHazard(hazardDescription: string, options: RouteOption[]): Promise<RouteChoice>` (`src/lib/serverFns/route.ts`)
+- [x] **M9.1** `chooseRouteHazard(hazardDescription: string, options: RouteOption[]): Promise<RouteChoice>` (`src/lib/serverFns/route.ts`)
   - Used at `report_point`: lane C vs finishing corner
   - Returns chosen route + confidence
-- [ ] **M9.2** `replanYardSlots(currentLayout, constraints): Promise<YardReplan>` (`src/lib/serverFns/yard.ts`)
+- [x] **M9.2** `replanYardSlots(currentLayout, constraints): Promise<YardReplan>` (`src/lib/serverFns/yard.ts`)
   - Triggered by late/early truck scenario
   - Returns list of slot moves: `[{ vin, from, to }]`
-- [ ] **M9.3** Wire `yard.ts` flow — validate re-plan, dispatch slot-to-slot missions
-- [ ] **M9.4** Hazard staging helper for Scene A
+- [x] **M9.3** Wire `yard.ts` flow — validate re-plan, dispatch slot-to-slot missions
+- [x] **M9.4** Hazard staging helper for Scene A
   - `stageHazard(at: 'finishing_corner', preset: 'forklift_unloading')` → spawns lorry, boxes, sign, cones, worker at correct offsets
+
+_M9: Scenes A and D run end-to-end in the scripted `/shift` demo._
 
 ---
 
@@ -528,9 +540,11 @@ export const fonts = {
 - [ ] **M10.2** Scene B: VIN-DARK headlight fault → rework → repair → recheck → PASS
 - [ ] **M10.3** Scene C: VIN-STUCK + box + worker → assist request → supervisor waits → lane clears
 - [ ] **M10.4** Scene D: Late truck T-1 → yard re-plan → slot moves with P2 waiting for P1
-- [ ] **M10.5** Scene E: Gemini parking Y7 (car behind Y8)
-- [ ] **M10.6** Demo controls in UI: "Play shift", "Next exception", "Restart", speed slider
+- [x] **M10.5** Scene E: Gemini parking Y7 (car behind Y8)
+- [x] **M10.6** Demo controls in UI: "Play shift", "Next exception", "Restart", speed slider
 - [ ] **M10.7** `storeArtifact(uri, blob)` — save JPEG frames to IndexedDB via `idb`
+
+_M10.1–M10.4 play in the scripted `/shift` demo; they stay open until screen-recorded on the three.js engine. M10.5 is in the scripted demo too: P001 parks in A7 (`yard.Y7`) behind P091 in A8 (`yard.Y8`)._
 
 ---
 

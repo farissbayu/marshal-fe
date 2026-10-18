@@ -1,8 +1,8 @@
 // Server-only AI entry point. Wraps the ADK agents behind a TanStack Start server function so
 // the browser can call it via RPC. Offline handlers are used ONLY when VITE_AI_OFFLINE=true is
 // set in .env; otherwise Gemini is forced and failures are returned as errors, never hidden as
-// offline answers. This is the ONLY module allowed to read GOOGLE_GENAI_API_KEY /
-// GOOGLE_GENAI_USE_VERTEXAI.
+// offline answers. This module and src/lib/serverFns/gemini.ts are the ONLY modules allowed to
+// read GOOGLE_GENAI_API_KEY / GOOGLE_GENAI_USE_VERTEXAI.
 
 try {
   process.loadEnvFile?.()

@@ -13,10 +13,52 @@ Browser (one tab)
 ├─ src/ui/       dashboard components (React)
 └─ src/stores/   zustand batch store; drives the engine loop via requestAnimationFrame
 
-Server (TanStack Start server function)
-└─ src/ai/       ADK agents + aiTask() server function -> Gemini
-                 (offline only when VITE_AI_OFFLINE=true; otherwise errors surface)
+Server (TanStack Start server functions)
+├─ src/ai/            ADK agents + aiTask() server function -> Gemini
+│                     (offline only when VITE_AI_OFFLINE=true; otherwise errors surface)
+└─ src/lib/serverFns/ Marshal server functions -> Gemini (fallback to deterministic offline)
 ```
+
+## Marshal contract and server functions
+
+- `src/lib/marshal/types.ts` is the TEAM_PLAN contract between the Marshal orchestrator and the
+  driving simulator (`SimCommand`, `SimEvent`, `DrivingSystem`) plus the ports the flows need
+  (`GateCapturePort`, `EvidencePort`, `ParkingPort`) and the server-function result types. Every
+  result carries `degraded: boolean`.
+- `points.ts` holds the named map points (CARLA frame, yaw in degrees), `schemas.ts` the zod
+  input schemas, `eventBus.ts` a dependency-free typed emitter (`sim:*`, `marshal:command`,
+  `ui:note`) and `parking/astar.ts` a pure hybrid A* planner that returns up to 3 candidate
+  control sequences into a slot.
+- `src/lib/serverFns/{gate,lamp,assist,parking,route,yard}.ts` are `createServerFn` RPCs:
+  `evaluateGatePhotos`, `evaluateLampEvidence`, `analyzeAssistClip`, `planParkingStep`,
+  `chooseRouteHazard`, `replanYardSlots`. `gemini.ts` is the only Gemini/env access; it is
+  imported lazily inside the handlers. `logic.ts` holds the pure offline answers and the safety
+  rules every Gemini answer is re-checked against (offered options only, colour mismatch always
+  fails, parking paths always come from A*, yard moves must be legal).
+- The browser calls them only through `createMarshalAi()` (`client.ts`), which falls back to the
+  offline answer when an RPC throws.
+
+## Marshal orchestrator and flows
+
+- `src/lib/marshal/orchestrator.ts` (`createOrchestrator`) subscribes to a `DrivingSystem`,
+  mirrors its events (`sim:*`) and every command (`marshal:command`) on the bus, keeps the
+  dashboard state (`state.ts`: cars, decisions, assist cases, 8x10 yard, KPIs) and runs the
+  flows in `flows/`: gate (M3.4), lamp + rework recheck (M5.6), route at `report_point`
+  (M9.1), parking loop (M7), assist cases with "Pause when needed" (M6/M8.8) and yard re-plan
+  validation and dispatch (M9.3). `hazards.ts` stages the Scene A forklift hazard (M9.4).
+- It reaches Gemini only through the `MarshalAi` interface. Yard row A columns 1-8 map to the
+  sim points `yard.Y1`..`yard.Y8`.
+- `testing/scriptedSystem.ts` is a deterministic, timer-free `DrivingSystem` (plus gate,
+  evidence and parking ports and offline truth hints) used by tests and the demo until the
+  three.js engine lands; `testing/offlineAi.ts` is a `MarshalAi` backed by the offline logic.
+  Its frames are placeholders, so the `/shift` store keeps the gate, lamp and assist image
+  checks offline for it (`placeholderFrames`); route, parking and yard still go to Gemini.
+- Offline answers fail closed: without truth hints the gate fails with `not_verified_offline`
+  and the lamp step reads `UNVERIFIED`, and the car is held in the rework bay for a person
+  instead of passing. Cars held with nothing left to automate (full yard, parking abandoned)
+  count as finished so the shift completes; pre-parked cars are not counted as produced.
+- Slot assignment prefers row-A slots with both neighbours free (the slots sit nose to tail),
+  and yard re-plans treat slots a car is driving to as reserved.
 
 ## Data flow
 
@@ -57,8 +99,8 @@ finished = car shipped, parked in yard, or done reworking
   a handler in `src/ai/offline.ts`, used only when `VITE_AI_OFFLINE=true` is set in `.env`.
   Otherwise a missing key or model failure is returned as an error and the client throws, so the
   store fails the batch loudly (`Batch failed`) instead of degrading silently. The key is read
-  only in `src/ai/server.ts`. A flow awaits the AI promise but the engine tick is not stopped by
-  a single call (offline it is effectively instant).
+  only in `src/ai/server.ts` and `src/lib/serverFns/gemini.ts`. A flow awaits the AI promise but
+  the engine tick is not stopped by a single call (offline it is effectively instant).
 - **Vision from the same WebGL scene.** `src/render/capture.ts` renders to an offscreen renderer
   separate from the viewer canvas, so what Gemini sees matches what the operator sees.
 - **Injectable ports keep `src/sim` pure.** `AiTaskFn` (`src/ai/tasks.ts`) and `CapturePort`

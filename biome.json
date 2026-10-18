@@ -9,7 +9,9 @@
       "!**/.tanstack",
       "!**/.nitro",
       "!**/.vinxi",
-      "!**/routeTree.gen.ts"
+      "!**/routeTree.gen.ts",
+      "!**/.agents",
+      "!**/Main.dc.html"
     ]
   },
   "formatter": {
@@ -33,7 +35,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "suspicious": {
         "noExplicitAny": "off"
       }

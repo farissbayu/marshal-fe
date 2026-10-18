@@ -28,7 +28,7 @@ and the batch stops with a `Batch failed` event instead of silently degrading.
 - **Gemini (default).** Set `GOOGLE_GENAI_API_KEY`, or Vertex via
   `GOOGLE_GENAI_USE_VERTEXAI=true` + `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION`.
   Optional `GEMINI_MODEL` (default `gemini-2.5-flash`). The key is read **only** in
-  `src/ai/server.ts` and never reaches the browser bundle.
+  `src/ai/server.ts` and `src/lib/serverFns/gemini.ts`, and never reaches the browser bundle.
 - **Offline (opt-in).** Set `VITE_AI_OFFLINE=true` in `.env`: every task uses the deterministic
   offline handlers, no Gemini calls happen, the UI/report show a **degraded** badge, and
   batches still finish `done`.
@@ -51,9 +51,18 @@ src/ai/       ADK agents + server function aiTask() + offline handlers
 src/ui/       dashboard components
 src/stores/   zustand batch store
 src/lib/      small utils (colours, storage)
+  marshal/    TEAM_PLAN contract (types), named points, zod schemas, event bus, A* parking
+  serverFns/  Marshal Gemini server functions + browser-safe client (createMarshalAi)
 ```
 
 See `docs/ARCHITECTURE.md` for the data flow and `docs/DEMO.md` for a 5-minute demo script.
+
+## Deployment
+
+Production runs on GCP: a global external HTTPS Load Balancer in front of Cloud Run, deployed by
+GitHub Actions through Workload Identity Federation on every push to `threejs` (or `feat/qais-marshal-flows-gcp`). Terraform is in
+`infra/gcp`; see [docs/deployment-gcp.md](docs/deployment-gcp.md). Locally, `bun run build &&
+bun run start` serves the production build on port 8080.
 
 ## Honest limitations
 

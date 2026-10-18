@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { AssistCard } from '#/ui/AssistCard'
 import { BatchForm } from '#/ui/BatchForm'
 import { BatchProgress } from '#/ui/BatchProgress'
@@ -39,6 +39,12 @@ function Dashboard() {
           </div>
         </div>
         <div className="topbar__meta flex flex-wrap items-center gap-2">
+          <Link
+            to="/shift"
+            className="tag inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-amber-400/40 bg-amber-400/10 text-amber-200 font-mono text-[11px] font-semibold tracking-wider uppercase hover:bg-amber-400/20"
+          >
+            Live shift dashboard
+          </Link>
           <span className="tag tag--live inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 font-mono text-[11px] font-semibold tracking-wider uppercase">
             <span className="live-dot w-2 h-2 rounded-full bg-emerald-400" aria-hidden="true" />
             Live Plant
