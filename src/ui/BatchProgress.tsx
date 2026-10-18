@@ -35,7 +35,7 @@ export function BatchProgress() {
           {degraded && (
             <span
               className="badge badge--warning px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30"
-              title="Gemini unavailable, using deterministic answers"
+              title="Offline AI enabled (VITE_AI_OFFLINE=true), using deterministic answers"
             >
               offline answers
             </span>

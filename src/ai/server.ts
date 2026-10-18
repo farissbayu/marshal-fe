@@ -1,6 +1,8 @@
-// Server-only AI entry point. Wraps the ADK agents (or the offline handlers when no key is
-// configured) behind a TanStack Start server function so the browser can call it via RPC.
-// This is the ONLY module allowed to read GOOGLE_GENAI_API_KEY / GOOGLE_GENAI_USE_VERTEXAI.
+// Server-only AI entry point. Wraps the ADK agents behind a TanStack Start server function so
+// the browser can call it via RPC. Offline handlers are used ONLY when VITE_AI_OFFLINE=true is
+// set in .env; otherwise Gemini is forced and failures are returned as errors, never hidden as
+// offline answers. This is the ONLY module allowed to read GOOGLE_GENAI_API_KEY /
+// GOOGLE_GENAI_USE_VERTEXAI.
 
 try {
   process.loadEnvFile?.()
@@ -9,15 +11,10 @@ try {
 }
 
 import { createServerFn } from '@tanstack/react-start'
-import { offlineTask } from './offline'
-import { type AiTaskName, aiTasks, validateTask } from './tasks'
+import { type AiTaskResult, handleAiTask, offlineEnabledFromEnv } from './handler'
+import { type AiTaskName, aiTasks } from './tasks'
 
-export type AiTaskResult = {
-  ok: boolean
-  degraded: boolean
-  result?: unknown
-  error?: string
-}
+export type { AiTaskResult } from './handler'
 
 const MODEL_TIMEOUT_MS = 15_000
 
@@ -54,44 +51,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   })
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function offlineResult(task: AiTaskName, payload: unknown, error?: string): AiTaskResult {
-  try {
-    return { ok: true, degraded: true, result: offlineTask(task, payload as never), error }
-  } catch (fallbackError) {
-    return { ok: false, degraded: true, error: error ?? errorMessage(fallbackError) }
-  }
-}
-
 export const aiTask = createServerFn({ method: 'POST', strict: false })
   .validator((input: unknown): { task: AiTaskName; payload: unknown } => {
     const request = input as { task?: unknown; payload?: unknown } | null
     if (!request || typeof request !== 'object') throw new Error('aiTask: invalid request')
     return { task: request.task as AiTaskName, payload: request.payload }
   })
-  .handler(async ({ data }): Promise<AiTaskResult> => {
-    const { task } = data
-    try {
-      const payload = validateTask(task, data.payload)
-      if (!isKeyConfigured()) {
-        return { ok: true, degraded: true, result: offlineTask(task, payload) }
-      }
-      try {
-        const result = await runOnline(task, payload)
-        return { ok: true, degraded: false, result }
-      } catch (error) {
-        console.warn(`[aiTask:${task}] falling back to offline:`, errorMessage(error))
-        return {
-          ok: true,
-          degraded: true,
-          result: offlineTask(task, payload),
-          error: errorMessage(error),
-        }
-      }
-    } catch (error) {
-      return offlineResult(task, data.payload, errorMessage(error))
-    }
-  })
+  .handler(
+    ({ data }): Promise<AiTaskResult> =>
+      handleAiTask(data.task, data.payload, {
+        offline: offlineEnabledFromEnv(process.env),
+        hasKey: isKeyConfigured(),
+        runOnline,
+      }),
+  )

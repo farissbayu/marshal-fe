@@ -1,7 +1,9 @@
-// Browser-safe AI client. Wraps the aiTask server function with a timeout, one retry on
-// network error, and a deterministic offline fallback, so an AiTaskFn always resolves.
+// Browser-safe AI client. Wraps the aiTask server function with a timeout and one retry on
+// network error. When VITE_AI_OFFLINE=true it falls back to the deterministic offline handlers;
+// otherwise a failed call throws (Gemini is forced, nothing degrades silently).
 // Never imports @google/adk and never reads env keys.
 
+import { offlineAllowed } from './mode'
 import { offlineTask } from './offline'
 import type { AiTaskResult } from './server'
 import {
@@ -78,6 +80,12 @@ export function createAiClient(options: CreateAiClientOptions = {}): AiTaskFn {
       }
     } else if (envelope && !envelope.ok) {
       error = new Error(envelope.error ?? 'ai task failed')
+    }
+
+    if (!offlineAllowed()) {
+      throw error instanceof Error
+        ? error
+        : new Error('ai task failed (offline AI disabled; set VITE_AI_OFFLINE=true to allow it)')
     }
 
     const fallback = offlineTask(task, payload)
