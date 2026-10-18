@@ -19,6 +19,7 @@ import type {
 } from '#/lib/marshal/types'
 import { createMarshalAi, type MarshalAi } from '#/lib/serverFns/client'
 import { offlineAssist, offlineGate, offlineLamp } from '#/lib/serverFns/logic'
+import { autoFocusKeys, chooseFocus, type SimFocus } from '#/lib/simview/focus'
 
 /**
  * Everything the orchestrator needs from an engine. `tick` and `time` are optional: a
@@ -148,8 +149,12 @@ export type ShiftStore = {
   haltedForYou: boolean
   /** Sim seconds per real second. */
   speed: number
-  /** Selected VIN (car detail). */
+  /** Selected VIN (car detail and 3D focus). */
   selected: string | null
+  /** Case picked with "Show in 3D" (focused while it stays open). */
+  focusedCase: string | null
+  /** Automatic 3D focus targets dismissed with "Overview" (see `autoFocusKey`). */
+  dismissedFocus: string[]
   /** Creates the orchestrator on first use (no-op afterwards). */
   ensureStarted: () => void
   play: () => void
@@ -166,7 +171,12 @@ export type ShiftStore = {
    * @returns True when the orchestrator accepted the choice.
    */
   choose: (case_id: string, option: AssistOption) => boolean
+  /** Selects a car (null clears it); also drops a picked case. */
   select: (vin: string | null) => void
+  /** Focuses the 3D view (and the car detail) on an assist case's car. */
+  focusCase: (case_id: string) => void
+  /** Returns the 3D view to the plant overview until a new decision comes up. */
+  showOverview: () => void
   /** Advances the backend by `seconds` (stops early when the shift pauses for you). */
   advance: (seconds: number) => void
   /** Swaps the engine (instance or factory used on every restart) and restarts. */
@@ -287,6 +297,8 @@ function build(): void {
     skipping: false,
     haltedForYou: false,
     selected: null,
+    focusedCase: null,
+    dismissedFocus: [],
   })
 }
 
@@ -435,6 +447,8 @@ export const useShiftStore = create<ShiftStore>((set, get) => ({
   haltedForYou: false,
   speed: 4,
   selected: null,
+  focusedCase: null,
+  dismissedFocus: [],
 
   ensureStarted() {
     if (!orchestrator) build()
@@ -499,7 +513,17 @@ export const useShiftStore = create<ShiftStore>((set, get) => ({
   },
 
   select(vin) {
-    set({ selected: vin })
+    set({ selected: vin, focusedCase: null })
+  },
+
+  focusCase(case_id) {
+    const item = get().shift.cases[case_id]
+    if (!item) return
+    set({ selected: item.vin, focusedCase: case_id })
+  },
+
+  showOverview() {
+    set({ selected: null, focusedCase: null, dismissedFocus: autoFocusKeys(get().shift) })
   },
 
   advance(seconds) {
@@ -520,3 +544,18 @@ export const useShiftStore = create<ShiftStore>((set, get) => ({
     build()
   },
 }))
+
+/**
+ * The 3D view's focus for a store state (see `chooseFocus`).
+ * @param store - Shift store state.
+ * @returns Focused car, or null for the overview.
+ */
+export function shiftFocus(
+  store: Pick<ShiftStore, 'shift' | 'selected' | 'focusedCase' | 'dismissedFocus'>,
+): SimFocus | null {
+  return chooseFocus(store.shift, {
+    selected: store.selected,
+    focusedCase: store.focusedCase,
+    dismissed: store.dismissedFocus,
+  })
+}

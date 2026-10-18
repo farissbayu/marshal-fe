@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Dashboard } from '#/components/Dashboard'
+import { SimCanvas } from '#/components/sim/SimCanvas'
 import { FONTS_STYLESHEET } from '#/lib/designTokens'
 
 export const Route = createFileRoute('/shift')({
@@ -16,5 +17,5 @@ export const Route = createFileRoute('/shift')({
 })
 
 function ShiftPage() {
-  return <Dashboard />
+  return <Dashboard simCanvas={<SimCanvas />} />
 }

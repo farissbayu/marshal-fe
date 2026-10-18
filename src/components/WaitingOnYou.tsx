@@ -8,6 +8,10 @@ export type WaitingOnYouProps = {
   /** Open assist cases, oldest first. */
   cases: AssistCase[]
   onChoose: (case_id: string, option: AssistOption) => void
+  /** Focuses the 3D view on the case's car ("Show in 3D"); the button is hidden without it. */
+  onFocus?: (case_id: string) => void
+  /** Case the 3D view is focused on. */
+  focusedCase?: string | null
 }
 
 /**
@@ -16,7 +20,7 @@ export type WaitingOnYouProps = {
  * @param props - Open cases and choose callback.
  * @returns The waiting-on-you section.
  */
-export function WaitingOnYou({ cases, onChoose }: WaitingOnYouProps) {
+export function WaitingOnYou({ cases, onChoose, onFocus, focusedCase }: WaitingOnYouProps) {
   return (
     <section className="md-panel" aria-labelledby="md-wait-title">
       <div className="md-panel-head">
@@ -31,15 +35,28 @@ export function WaitingOnYou({ cases, onChoose }: WaitingOnYouProps) {
           Nothing needs you. Gemini and the yard rules are handling every routine car.
         </div>
       ) : (
-        cases.map((item) => <AssistCard key={item.case_id} item={item} onChoose={onChoose} />)
+        cases.map((item) => (
+          <AssistCard
+            key={item.case_id}
+            item={item}
+            onChoose={onChoose}
+            onFocus={onFocus}
+            focused={focusedCase === item.case_id}
+          />
+        ))
       )}
     </section>
   )
 }
 
-type AssistCardProps = { item: AssistCase; onChoose: WaitingOnYouProps['onChoose'] }
+type AssistCardProps = {
+  item: AssistCase
+  onChoose: WaitingOnYouProps['onChoose']
+  onFocus?: WaitingOnYouProps['onFocus']
+  focused: boolean
+}
 
-function AssistCard({ item, onChoose }: AssistCardProps) {
+function AssistCard({ item, onChoose, onFocus, focused }: AssistCardProps) {
   const [broken, setBroken] = useState(false)
   const frame = item.frames[0]
   const recommended = item.analysis?.recommendation
@@ -50,6 +67,17 @@ function AssistCard({ item, onChoose }: AssistCardProps) {
         <h3 id={`md-card-${item.case_id}`}>Assistance · {item.vin}</h3>
         <span className="md-kind">CAR STOPPED</span>
       </div>
+      {onFocus ? (
+        <button
+          type="button"
+          className={`md-sim-btn${focused ? ' on' : ''}`}
+          aria-pressed={focused}
+          aria-label={`Show ${item.vin} in 3D`}
+          onClick={() => onFocus(item.case_id)}
+        >
+          Show in 3D
+        </button>
+      ) : null}
       {frame && !broken ? (
         <img
           className="md-card-img"

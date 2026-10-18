@@ -33,4 +33,9 @@ declare module 'three' {
   export const MathUtils: any
   export const SRGBColorSpace: any
   export const Fog: any
+  export const RingGeometry: any
+  export const ConeGeometry: any
+  export const MeshBasicMaterial: any
+  export const HemisphereLight: any
+  export const DoubleSide: any
 }

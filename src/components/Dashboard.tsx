@@ -117,6 +117,8 @@ export function Dashboard({ simCanvas }: DashboardProps) {
           <div className="md-side">
             <WaitingOnYou
               cases={openCases}
+              onFocus={store.focusCase}
+              focusedCase={store.focusedCase}
               onChoose={(case_id, option) => {
                 store.choose(case_id, option)
               }}
