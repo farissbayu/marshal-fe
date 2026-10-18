@@ -127,6 +127,15 @@ export const DEFAULT_SCENARIO: ShiftScenario = {
   ],
 }
 
+/** Sim seconds the yard crew needs to clear a blocker for a car waiting for removal. */
+export const CREW_CLEAR_S = 6
+
+/** After a pass / reroute the crew clears the blocker once the car is this far from it. */
+const CREW_PASSED_M = 12
+
+/** ...or after this many sim seconds at the latest. */
+const CREW_GIVE_UP_S = 60
+
 /** Largest single engine step, in sim seconds. */
 export const MAX_STEP_S = 0.5
 
@@ -203,6 +212,10 @@ let skipUntil = 0
 let fired = new Set<string>()
 /** Assist case id -> prop ids to clear once the case is decided. */
 let blockerProps = new Map<string, string[]>()
+/** Assist case id -> where its box stands. */
+let blockerSpots = new Map<string, { x: number; y: number }>()
+/** Assist case id -> sim second the case was first seen decided. */
+let blockerDecided = new Map<string, number>()
 /** Hazard index -> staged prop ids. */
 let hazardProps = new Map<number, string[]>()
 
@@ -268,6 +281,8 @@ function build(): void {
   backend = engine
   fired = new Set()
   blockerProps = new Map()
+  blockerSpots = new Map()
+  blockerDecided = new Map()
   hazardProps = new Map()
   const pauseWhenNeeded = useShiftStore.getState().shift.pauseWhenNeeded
   const hasClock = backendTime() !== undefined
@@ -327,11 +342,26 @@ function runBlockers(state: MarshalState): void {
       engine.spawnProp(ids[1], 'worker', worker.x, worker.y, at.yaw + 90)
     }
     blockerProps.set(case_id, ids)
+    blockerSpots.set(case_id, box)
     engine.raiseAssist(blocker.vin, case_id, blocker.reason, [...blocker.options])
   }
-  // The yard crew clears a blocker once the case is decided.
+  // The yard crew clears a blocker once the case is decided: after CREW_CLEAR_S when the car
+  // waits for removal, or once the car has driven around it (pass left / reroute).
   for (const [case_id, ids] of blockerProps) {
-    if (state.cases[case_id]?.status !== 'decided') continue
+    const item = state.cases[case_id]
+    if (item?.status !== 'decided') continue
+    const decidedAt = blockerDecided.get(case_id) ?? now
+    blockerDecided.set(case_id, decidedAt)
+    const spot = blockerSpots.get(case_id)
+    const car = engine.getPositionXY(item.vin)
+    const gone = car.x === 0 && car.y === 0 && car.yaw === 0
+    const past = !spot || gone || Math.hypot(car.x - spot.x, car.y - spot.y) > CREW_PASSED_M
+    const waited = now - decidedAt
+    const cleared =
+      item.chosen === 'wait_for_removal'
+        ? waited >= CREW_CLEAR_S
+        : (past && waited > 0) || waited >= CREW_GIVE_UP_S
+    if (!cleared) continue
     for (const id of ids) engine.removeProp(id)
     blockerProps.delete(case_id)
   }
