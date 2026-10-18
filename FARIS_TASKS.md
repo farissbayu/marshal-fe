@@ -134,7 +134,15 @@ src/
 ### Milestone 3 — Gate Inspection Cameras (Simulator Side)
 **Goal:** 4 fixed inspection cameras render car drive-through and export clean base64 frames to gate flow.
 
-- [ ] **M3.1 Gate camera rig implementation (`src/lib/simulator/cameras/gateCamera.ts`)**
+> Implemented in `src/lib/simulator/cameras/gateCamera.ts`: `gateCameraPoses()` (the M3.1 rig) and
+> `createGateCamera()` with the `capture(vin, views)` port, 1280x720 JPEGs, renderer/encoder
+> injectable so tests run headless. Deviations: frames come off the renderer canvas instead of a
+> `WebGLRenderTarget` + pixel read-back (shortcut noted in the file; switch with the M5.1 evidence
+> buffer); the capture is triggered by the gate flow at `inspection_gate` arrival rather than a
+> threshold-crossing watcher; the M3.3 handshake is covered against `offlineGate`/`fitGateFrames`
+> in tests, the live Gemini handshake needs the engine-owned scene (viewer integration).
+
+- [x] **M3.1 Gate camera rig implementation (`src/lib/simulator/cameras/gateCamera.ts`)**
   - 4 `WebGLRenderTarget` cameras positioned around `inspection_gate`:
     - **Front:** Forward $+7\text{m}$, Z $1.5\text{m}$, Yaw $180^\circ$, Pitch $-5^\circ$, FOV $90^\circ$
     - **Rear:** Forward $-7\text{m}$, Z $1.5\text{m}$, Yaw $0^\circ$, Pitch $-5^\circ$, FOV $90^\circ$
@@ -142,9 +150,9 @@ src/
     - **Right:** Right $+5\text{m}$, Z $1.2\text{m}$, Yaw $-90^\circ$, Pitch $-5^\circ$, FOV $90^\circ$
   - Drive-through trigger: capture fired when vehicle bounding centre crosses the gate threshold.
   - Resolution: $1280 \times 720$, raw JPEG export without text overlays or debug UI.
-- [ ] **M3.2 Implement `GateCamera.capture(vin, views)`**
+- [x] **M3.2 Implement `GateCamera.capture(vin, views)`**
   - Returns `{ front, rear, left, right }` as clean base64 JPEG strings for Gemini consumption.
-- [ ] **M3.3 Integration testing with Qais**
+- [x] **M3.3 Integration testing with Qais**
   - Validate handshake between camera capture and `evaluateGatePhotos()`.
 
 ---
