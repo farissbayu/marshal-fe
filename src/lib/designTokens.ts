@@ -1,5 +1,5 @@
-// Marshal dashboard design tokens (TEAM_PLAN M8, taken from Main.dc.html). The `/shift`
-// dashboard exposes them as CSS custom properties so src/components/dashboard.css uses them.
+// Marshal dashboard design tokens (TEAM_PLAN M8, taken from Main.dc.html). The dashboard
+// exposes them as CSS custom properties so src/components/dashboard.css uses them.
 
 /** Dashboard colours. */
 export const colors = {

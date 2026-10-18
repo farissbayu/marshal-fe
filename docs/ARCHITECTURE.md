@@ -51,7 +51,7 @@ Server (TanStack Start server functions)
 - `testing/scriptedSystem.ts` is a deterministic, timer-free `DrivingSystem` (plus gate,
   evidence and parking ports and offline truth hints) used by tests and the demo until the
   three.js engine lands; `testing/offlineAi.ts` is a `MarshalAi` backed by the offline logic.
-  Its frames are placeholders, so the `/shift` store keeps the gate, lamp and assist image
+  Its frames are placeholders, so the dashboard store keeps the gate, lamp and assist image
   checks offline for it (`placeholderFrames`); route, parking and yard still go to Gemini.
 - Offline answers fail closed: without truth hints the gate fails with `not_verified_offline`
   and the lamp step reads `UNVERIFIED`, and the car is held in the rework bay for a person
@@ -111,7 +111,7 @@ finished = car shipped, parked in yard, or done reworking
 
 ## Known shortcuts
 
-- The scripted engine (the `/shift` stand-in until the three.js backend lands) queues cars with a
+- The scripted engine (the dashboard stand-in until the three.js backend lands) queues cars with a
   center-to-center 6 m gap along the follower's own heading, measured only against cars that have
   an active mission or stand still in the lane; pull-over points (yard slots, rework bay) are
   ignored. It does not model the lane polyline corridor or a proportional rolling gap yet

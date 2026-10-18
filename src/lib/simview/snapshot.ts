@@ -1,4 +1,4 @@
-// One frame of the /shift 3D view: car poses read from the engine, props, dock trucks and the
+// One frame of the dashboard 3D view: car poses read from the engine, props, dock trucks and the
 // focus. Pure (no three.js) so the focus / highlight rules are testable without WebGL.
 
 import { COLOUR_RGB, type MarshalState, type Truck } from '#/lib/marshal/state'

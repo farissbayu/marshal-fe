@@ -10,43 +10,33 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ShiftRouteImport } from './routes/shift'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ShiftRoute = ShiftRouteImport.update({
-  id: '/shift',
-  path: '/shift',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/shift': typeof ShiftRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/shift': typeof ShiftRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/shift': typeof ShiftRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/shift'
+  fullPaths: '/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/shift'
-  id: '__root__' | '/' | '/shift'
+  to: '/'
+  id: '__root__' | '/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ShiftRoute: typeof ShiftRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,19 +48,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/shift': {
-      id: '/shift'
-      path: '/shift'
-      fullPath: '/shift'
-      preLoaderRoute: typeof ShiftRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ShiftRoute: ShiftRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

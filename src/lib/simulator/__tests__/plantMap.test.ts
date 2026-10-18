@@ -10,7 +10,7 @@ describe('lane graph', () => {
     expect(graph.validate()).toEqual([])
   })
 
-  it('contains every leg the /shift viewer draws', () => {
+  it('contains every leg the dashboard viewer draws', () => {
     for (const [from, to] of PLANT_SEGMENTS) {
       const edge = graph.edges.find(
         (item) => (item.from === from && item.to === to) || (item.from === to && item.to === from),

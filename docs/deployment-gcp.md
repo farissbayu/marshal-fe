@@ -124,7 +124,7 @@ The next push to a deploy branch deploys a new revision and sends 100% traffic t
   browser falls back to the offline answers); and `max_instances` (default 1, with `min_instances` 1 for no cold starts) caps concurrency.
   Cloud Armor Standard is billed per policy, rule and request. For anything beyond a demo, put
   the LB behind IAP as well.
-- While the `/shift` dashboard runs on the scripted engine (placeholder frames, not JPEGs), the
+- While the dashboard runs on the scripted engine (placeholder frames, not JPEGs), the
   gate, lamp and assist image checks stay offline in the browser; only route, parking and yard
   decisions call Gemini.
 - The deployer service account can only push to the app's Artifact Registry repository, deploy

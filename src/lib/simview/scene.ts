@@ -1,4 +1,4 @@
-// three.js scene for the /shift 3D view: the TEAM_PLAN plant (road strips between the named
+// three.js scene for the dashboard 3D view: the TEAM_PLAN plant (road strips between the named
 // points, gate, test track, rework bay, yard slots, dock) plus cars, props and focus highlights.
 // Builds without a WebGL context, so it is testable in jsdom.
 

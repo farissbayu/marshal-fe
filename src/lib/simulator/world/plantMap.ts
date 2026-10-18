@@ -9,7 +9,7 @@ export type LaneSegment = readonly [PointName, PointName]
 
 /**
  * Legs the flows send cars along: the line corridor, both routes around the report point, the
- * rework return and the yard row. Matches the legs the /shift viewer draws (plus the rework
+ * rework return and the yard row. Matches the legs the dashboard viewer draws (plus the rework
  * return from `test_track` the lamp flow needs).
  */
 export const LANE_SEGMENTS: readonly LaneSegment[] = [

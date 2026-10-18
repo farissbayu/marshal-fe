@@ -1,4 +1,4 @@
-// Camera goals for the /shift 3D view (three.js frame, y up). Pure math, no three.js.
+// Camera goals for the dashboard 3D view (three.js frame, y up). Pure math, no three.js.
 
 import type { Pose } from '#/lib/marshal/types'
 import type { PlantLayout } from './plantMap'

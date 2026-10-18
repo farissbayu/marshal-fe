@@ -1,4 +1,4 @@
-// Plant layout for the /shift 3D view, built from the TEAM_PLAN named points (CARLA frame).
+// Plant layout for the dashboard 3D view, built from the TEAM_PLAN named points (CARLA frame).
 // Pure data: no three.js. Roads are straight strips between the points the scripted engine
 // drives between (it moves in straight lines from waypoint to waypoint).
 

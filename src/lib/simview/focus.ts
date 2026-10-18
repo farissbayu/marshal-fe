@@ -1,4 +1,4 @@
-// Which car the /shift 3D view focuses on. Pure: reads an orchestrator snapshot plus the
+// Which car the dashboard 3D view focuses on. Pure: reads an orchestrator snapshot plus the
 // dashboard's selection and returns the focus target (null = plant overview).
 
 import type { CarState, MarshalState } from '#/lib/marshal/state'

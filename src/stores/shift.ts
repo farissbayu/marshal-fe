@@ -1,4 +1,4 @@
-// Shift store (zustand) for the `/shift` dashboard. Owns the Marshal orchestrator and its
+// Shift store (zustand) for the dashboard. Owns the Marshal orchestrator and its
 // DrivingSystem backend, drives the backend clock with requestAnimationFrame (play, pause, next
 // exception, restart, speed) and publishes orchestrator snapshots. The backend defaults to the
 // ScriptedDrivingSystem and can be swapped with `setBackend` (e.g. the three.js engine).

@@ -14,7 +14,7 @@ export type SimCanvasProps = {
 }
 
 /**
- * Live 3D plant view for /shift. Follows the selected car, or the car a decision waits on,
+ * Live 3D plant view for the dashboard. Follows the selected car, or the car a decision waits on,
  * and shows every car moving otherwise. Client only: WebGL starts in an effect and a text
  * fallback replaces the canvas when it fails.
  * @param props - Optional viewer factory and layout.

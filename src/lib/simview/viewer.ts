@@ -1,4 +1,4 @@
-// WebGL viewer for the /shift 3D view: renders the plant scene, eases the camera towards the
+// WebGL viewer for the dashboard 3D view: renders the plant scene, eases the camera towards the
 // focused car (or the overview) and positions HTML labels over the canvas. Browser only.
 
 import * as THREE from 'three'

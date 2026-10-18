@@ -1,5 +1,8 @@
 # Queue sync fix — hackathon-night plan
 
+> Note (later): the dashboard now lives on `/`; the `/shift` route was removed, so read `/shift`
+> below as that same dashboard.
+
 **Problem.** After merging Qais's branch (PR #1, `1f91c21`), the `/shift` 3D view looks like the
 line is not synchronized: cars drive through each other and stack on the same coordinates instead
 of queuing. The demo is tonight; this document scopes the minimum fix and compares it against the
