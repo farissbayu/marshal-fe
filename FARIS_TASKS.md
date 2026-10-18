@@ -103,22 +103,30 @@ src/
 ### Milestone 2 — Lane Graph + One Car Driving
 **Goal:** Single car drives autonomous loop: `line_end → inspection_gate → test_track → report_point` at $10\text{ km/h}$, crossing gate at $\sim 5\text{ km/h}$.
 
-- [ ] **M2.1 Lane graph pathfinding**
+> Implemented in `src/lib/simulator/`: `world/plantMap.ts` gains deterministic Dijkstra `route()`;
+> `actors/driver.ts` holds pure-pursuit steering, the speed controller and the M2.4 arrival rules;
+> `engine.ts` implements the `DrivingSystem` `send` dispatcher, 1 Hz status and `mission.done`.
+> Deviations: the engine is pure (no three.js import; the viewer attaches meshes later, M8.10);
+> the gate is crossed at ~5 km/h and the speed logged on first approach, but the car still stops
+> at `inspection_gate` because the gate flow waits for `mission.done` (a true drive-through needs
+> a flow change, TEAM_PLAN M2.4 vs M3.4); assist manoeuvres are minimal until M6.
+
+- [x] **M2.1 Lane graph pathfinding**
   - Path search (A* or Dijkstra) traversing the segment graph between waypoints.
-- [ ] **M2.2 Pure-pursuit steering controller (`src/lib/simulator/actors/driver.ts`)**
+- [x] **M2.2 Pure-pursuit steering controller (`src/lib/simulator/actors/driver.ts`)**
   - Lookahead distance: $\sim 2\times$ car length ($\approx 9.8\text{m}$).
   - Maximum steering angle: $\pm 30^\circ$ front-wheel deflection.
   - Kinematic bicycle model ($L = 2.85\text{m}$).
-- [ ] **M2.3 Speed controller**
+- [x] **M2.3 Speed controller**
   - Smooth acceleration/braking profile targeting `max_speed_kmh` (default $10\text{ km/h}$).
-- [ ] **M2.4 Arrival & stop detection**
+- [x] **M2.4 Arrival & stop detection**
   - **Normal waypoint:** arrival radius within $3\text{--}4\text{m}$.
   - **Precise stop (`pull_over`, rework):** tolerance $\pm 0.4\text{m}$, walking creep speed, $30\text{s}$ timeout.
   - **Drive-through (`inspection_gate`):** seamless crossing without stopping, log gate speed `passes[vin] = km/h`, emit status.
-- [ ] **M2.5 Event dispatchers**
+- [x] **M2.5 Event dispatchers**
   - Emit periodic `status` event at $1\text{ Hz}$.
   - Emit `mission.done` on completing all waypoint segments.
-- [ ] **M2.6 Implement `send(MissionGoCmd)` dispatcher (`src/lib/simulator/engine.ts`)**
+- [x] **M2.6 Implement `send(MissionGoCmd)` dispatcher (`src/lib/simulator/engine.ts`)**
   - Parse waypoints, assign path, and activate driver state machine.
 
 ---

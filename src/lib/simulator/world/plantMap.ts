@@ -44,6 +44,13 @@ export type LaneGraph = {
   neighbors(name: PointName): PointName[]
   /** Straight-line distance between two named points, metres. */
   distance(from: PointName, to: PointName): number
+  /**
+   * Shortest path of named points (deterministic Dijkstra: smallest distance, then name).
+   * @param from - Start point.
+   * @param to - End point.
+   * @returns Point names from `from` to `to` inclusive.
+   */
+  route(from: PointName, to: PointName): PointName[]
   /** Graph problems: broken references, zero-length legs, unreachable points. */
   validate(): string[]
 }
@@ -91,11 +98,51 @@ export function createLaneGraph(
     if (!point) throw new Error(`unknown point: ${name}`)
     return point
   }
+  const route = (from: PointName, to: PointName): PointName[] => {
+    pointsOf(from)
+    pointsOf(to)
+    if (from === to) return [from]
+    const dist = new Map<PointName, number>([[from, 0]])
+    const prev = new Map<PointName, PointName>()
+    const visited = new Set<PointName>()
+    while (true) {
+      let current: PointName | undefined
+      let best = Number.POSITIVE_INFINITY
+      for (const [name, value] of dist) {
+        if (visited.has(name)) continue
+        if (value < best || (value === best && current !== undefined && name < current)) {
+          best = value
+          current = name
+        }
+      }
+      if (current === undefined || best === Number.POSITIVE_INFINITY || current === to) break
+      visited.add(current)
+      for (const next of adjacency.get(current) ?? []) {
+        if (visited.has(next)) continue
+        const candidate = best + lengthOf(points[current], points[next])
+        if (candidate < (dist.get(next) ?? Number.POSITIVE_INFINITY)) {
+          dist.set(next, candidate)
+          prev.set(next, current)
+        }
+      }
+    }
+    if (!dist.has(to)) throw new Error(`no route from ${from} to ${to}`)
+    const path: PointName[] = [to]
+    let cursor = to
+    while (cursor !== from) {
+      const step = prev.get(cursor)
+      if (!step) throw new Error(`no route from ${from} to ${to}`)
+      path.unshift(step)
+      cursor = step
+    }
+    return path
+  }
   return {
     points,
     edges,
     neighbors: (name) => [...(adjacency.get(name) ?? [])],
     distance: (from, to) => lengthOf(pointsOf(from), pointsOf(to)),
+    route,
     validate() {
       const seen = new Set<PointName>(['line_end'])
       const queue: PointName[] = ['line_end']
