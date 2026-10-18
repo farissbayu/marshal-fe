@@ -15,20 +15,25 @@ import { rgbToColourName } from '#/lib/marshal/state'
 import type {
   AssistOption,
   AssistRequestEvent,
+  ControlStep,
   DrivingSystem,
   GateView,
   MissionDoneEvent,
   MissionGoCmd,
+  ObstacleBox,
+  ParkingSlot,
+  Pose,
   SimCommand,
   SimEvent,
   StatusEvent,
   TrackStepEvent,
 } from '#/lib/marshal/types'
-import type { CarLamps } from './actors/car'
+import { CAR_LENGTH_M, CAR_WIDTH_M, type CarLamps } from './actors/car'
 import {
   ARRIVAL_RADIUS_M,
   approachSpeed,
   BRAKE_MPS2,
+  controlStepDelta,
   FIXED_STEP_S,
   GATE_RECORD_RADIUS_M,
   GATE_SLOW_ZONE_M,
@@ -40,9 +45,11 @@ import {
   PRECISE_TIMEOUT_S,
   pointAhead,
   purePursuitSteer,
+  SAFETY_CLEARANCE_M,
+  SAFETY_PROBE_M,
   stepVehicle,
 } from './actors/driver'
-import type { PropKind } from './actors/props'
+import { FLAT_PROP_HEIGHT_M, PROP_FOOTPRINTS, type PropKind } from './actors/props'
 import {
   offLamps,
   R12_BLINK_PERIOD_S,
@@ -102,6 +109,8 @@ export const AVOID_BACKUP_SPEED_MPS = 1
 /** The offset is held until the obstacle is this far behind / outside this corridor. */
 const AVOID_TRACK_RANGE_M = 12
 const AVOID_TRACK_LATERAL_M = 6
+/** Obstacles within this of a parking slot are reported (M7.2). */
+const PARKING_OBSTACLE_RANGE_M = 15
 
 type LampFault = 'headlights' | 'brake_lights' | 'indicators'
 
@@ -190,6 +199,24 @@ function routeLength(route: readonly PathPoint[]): number {
     total += Math.hypot(route[index].x - route[index - 1].x, route[index].y - route[index - 1].y)
   }
   return total
+}
+
+/**
+ * Distance from a point to an oriented obstacle box (M7.3), metres; 0 inside the box.
+ * @param x - Probe x, CARLA frame.
+ * @param y - Probe y, CARLA frame.
+ * @param box - Obstacle box.
+ * @returns Clearance to the box surface.
+ */
+function distanceToBox(x: number, y: number, box: ObstacleBox): number {
+  const yaw = (box.yaw * Math.PI) / 180
+  const dx = x - box.x
+  const dy = y - box.y
+  const localX = dx * Math.cos(yaw) + dy * Math.sin(yaw)
+  const localY = -dx * Math.sin(yaw) + dy * Math.cos(yaw)
+  const outsideX = Math.max(Math.abs(localX) - box.length / 2, 0)
+  const outsideY = Math.max(Math.abs(localY) - box.width / 2, 0)
+  return Math.hypot(outsideX, outsideY)
 }
 
 /**
@@ -451,6 +478,45 @@ export class ThreeJsEngine implements DrivingSystem {
    */
   getAssistMedia(case_id: string): string[] {
     return [...(this.assists.get(case_id)?.frames ?? [])]
+  }
+
+  /**
+   * Obstacles around a parking slot (M7.2): vehicles and props, flat props filtered out.
+   * @param vin - Car being parked (excluded from the result).
+   * @param slot - Target slot.
+   * @returns Obstacle boxes in the map frame.
+   */
+  getObstacles(vin: string, slot: ParkingSlot): ObstacleBox[] {
+    return this.nearbyObstacles(vin, slot.x, slot.y)
+  }
+
+  /**
+   * Runs a parking control sequence with the kinematic bicycle model and the M7.3 safety stop.
+   * @param vin - Car being parked.
+   * @param steps - Control steps.
+   * @returns Final pose (yaw degrees) and whether the safety stop fired.
+   */
+  async execute(vin: string, steps: ControlStep[]): Promise<{ pose: Pose; stopped: boolean }> {
+    const car = this.cars.get(vin)
+    if (!car) return { pose: { x: 0, y: 0, yaw: 0 }, stopped: false }
+    const obstacles = this.nearbyObstacles(vin, car.x, car.y)
+    let stopped = false
+    for (const step of steps) {
+      if (this.safetyStop(car, step, obstacles)) {
+        stopped = true
+        break
+      }
+      const delta = controlStepDelta(car, step)
+      car.x += delta.dx
+      car.y += delta.dy
+      car.yaw += delta.dyaw
+    }
+    car.speed_mps = 0
+    const pose = this.getPositionXY(vin)
+    const log = this.parkingLog[vin] ?? []
+    log.push({ steps: steps.length, pose, stopped })
+    this.parkingLog[vin] = log
+    return { pose, stopped }
   }
 
   /**
@@ -971,6 +1037,63 @@ export class ThreeJsEngine implements DrivingSystem {
     car.y = point.y
     car.yaw = (point.yaw * Math.PI) / 180
     car.speed_mps = 0
+  }
+
+  /**
+   * Obstacles within {@link PARKING_OBSTACLE_RANGE_M} of a point (M7.2): vehicles and props.
+   * @param vin - Car to exclude.
+   * @param x - Centre x, CARLA frame.
+   * @param y - Centre y, CARLA frame.
+   * @returns Obstacle boxes.
+   */
+  private nearbyObstacles(vin: string, x: number, y: number): ObstacleBox[] {
+    const near = (px: number, py: number): boolean =>
+      Math.hypot(px - x, py - y) <= PARKING_OBSTACLE_RANGE_M
+    const boxes: ObstacleBox[] = []
+    for (const car of this.cars.values()) {
+      if (car.vin === vin || !near(car.x, car.y)) continue
+      boxes.push({
+        id: car.vin,
+        x: car.x,
+        y: car.y,
+        yaw: (car.yaw * 180) / Math.PI,
+        length: CAR_LENGTH_M,
+        width: CAR_WIDTH_M,
+        moving: car.speed_mps > 0,
+      })
+    }
+    for (const prop of this.props.values()) {
+      if (!near(prop.x, prop.y)) continue
+      const footprint = PROP_FOOTPRINTS[prop.kind]
+      if (footprint.height < FLAT_PROP_HEIGHT_M) continue
+      boxes.push({
+        id: prop.id,
+        x: prop.x,
+        y: prop.y,
+        yaw: prop.yaw,
+        length: footprint.length,
+        width: footprint.width,
+        moving: footprint.moving,
+      })
+    }
+    return boxes
+  }
+
+  /**
+   * Predictive safety stop (M7.3): probes {@link SAFETY_PROBE_M} ahead along the step's arc and
+   * halts when any obstacle clearance falls below {@link SAFETY_CLEARANCE_M}.
+   * @param car - Car about to step.
+   * @param step - Control step.
+   * @param obstacles - Nearby obstacle boxes.
+   * @returns True when the step must not run.
+   */
+  private safetyStop(car: EngineCar, step: ControlStep, obstacles: ObstacleBox[]): boolean {
+    const speed = Math.max(1e-6, step.speed_mps)
+    const fraction = Math.min(1, SAFETY_PROBE_M / (speed * Math.max(1e-6, step.duration_s)))
+    const probe = controlStepDelta(car, { ...step, duration_s: step.duration_s * fraction })
+    const px = car.x + probe.dx
+    const py = car.y + probe.dy
+    return obstacles.some((box) => distanceToBox(px, py, box) < SAFETY_CLEARANCE_M)
   }
 
   /**

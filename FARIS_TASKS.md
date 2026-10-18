@@ -267,19 +267,25 @@ src/
 ### Milestone 7 — Gemini Parking: Kinematic Control Loop
 **Goal:** Real-time kinematic bicycle control loop responds to Gemini/A* control sequences; collision-free parking in Y7 behind Y8.
 
-- [ ] **M7.1 Kinematic bicycle model control loop (`engine.ts` / `driver.ts`)**
+> Implemented in `src/lib/simulator/`: `driver.controlStepDelta()` (exact arcs, gear R, wheel
+> -1..1 to +/-30 deg), engine `getObstacles(vin, slot)` (vehicles at 4.9x1.9 m, props with their
+> footprints, flat props filtered, self excluded, 15 m radius), `execute(vin, steps)` applying the
+> sequence with the M7.3 predictive stop (0.4 m arc probe, 0.2 m clearance), and `parkingLog`
+> session records per call. Validated against the orchestrator parking flow in M10.
+
+- [x] **M7.1 Kinematic bicycle model control loop (`engine.ts` / `driver.ts`)**
   - Execute per-tick control commands:
     $$\Delta x = v \cdot \cos(\psi) \cdot \Delta t$$
     $$\Delta y = v \cdot \sin(\psi) \cdot \Delta t$$
     $$\Delta \psi = \frac{v}{L} \cdot \tan(\delta) \cdot \Delta t \quad (L = 2.85\text{m})$$
   - Steering input: normalised $\delta \in [-1, 1]$ mapping to $\pm 30^\circ$ front-wheel angle (positive = left in slot frame).
-- [ ] **M7.2 Obstacle bounding telemetry**
+- [x] **M7.2 Obstacle bounding telemetry**
   - Report all vehicles, workers, and props within $15\text{m}$ of target parking slot as:
     `{ id, x, y, yaw, length, width, moving: boolean }`
   - Filter out ground/flat props ($< 0.15\text{m}$ height).
-- [ ] **M7.3 Predictive safety emergency stop**
+- [x] **M7.3 Predictive safety emergency stop**
   - Compute $0.4\text{m}$ forward trajectory projection; trigger instant halt if clearance to any obstacle falls below $0.2\text{m}$.
-- [ ] **M7.4 Parking session telemetry**
+- [x] **M7.4 Parking session telemetry**
   - Maintain `parkingLog[vin]` session records (decisions, trajectory iterations, final parking pose).
 
 ---

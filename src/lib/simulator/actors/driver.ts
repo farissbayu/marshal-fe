@@ -2,6 +2,7 @@
 // smooth speed controller and the arrival rules. Pure math in the CARLA frame, yaw radians; the
 // engine steps it at a fixed 0.1 s. No three.js, no React.
 
+import type { ControlStep } from '#/lib/marshal/types'
 import { CAR_WHEELBASE_M } from './car'
 
 /** Control step, seconds (TEAM_PLAN: fixed-step 0.1 s). */
@@ -21,6 +22,9 @@ export const PRECISE_TIMEOUT_S = 30
 export const GATE_SLOW_ZONE_M = 15
 export const GATE_SPEED_MPS = 5 / 3.6
 export const GATE_RECORD_RADIUS_M = 4
+/** Predictive safety stop (TEAM_PLAN M7.3): probe forward this far, halt under this clearance. */
+export const SAFETY_PROBE_M = 0.4
+export const SAFETY_CLEARANCE_M = 0.2
 
 /** A point on a sampled lane centre-line, CARLA frame. */
 export type PathPoint = { x: number; y: number }
@@ -161,5 +165,31 @@ export function stepVehicle(
     y: state.y + speed * Math.sin(yaw) * dt,
     yaw,
     speed_mps: speed,
+  }
+}
+
+/**
+ * Pose delta of one kinematic control step (TEAM_PLAN M7.1): exact arcs, gear R reverses,
+ * `wheel` -1..1 maps to +/-30 degrees (positive = left).
+ * @param state - Car state before the step.
+ * @param step - Control step.
+ * @returns Position and heading deltas in the CARLA frame.
+ */
+export function controlStepDelta(
+  state: VehicleState,
+  step: ControlStep,
+): { dx: number; dy: number; dyaw: number } {
+  const speed = step.speed_mps * (step.gear === 'R' ? -1 : 1)
+  const travelled = speed * step.duration_s
+  const wheel = Math.max(-1, Math.min(1, step.wheel)) * MAX_STEER_RAD
+  const curvature = Math.tan(wheel) / CAR_WHEELBASE_M
+  if (Math.abs(curvature) < 1e-9) {
+    return { dx: travelled * Math.cos(state.yaw), dy: travelled * Math.sin(state.yaw), dyaw: 0 }
+  }
+  const next = state.yaw + travelled * curvature
+  return {
+    dx: (Math.sin(next) - Math.sin(state.yaw)) / curvature,
+    dy: -(Math.cos(next) - Math.cos(state.yaw)) / curvature,
+    dyaw: travelled * curvature,
   }
 }
